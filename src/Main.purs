@@ -6,7 +6,7 @@ import Data.Foldable (sequence_)
 import Data.Maybe (Maybe)
 import Effect (Effect)
 import Render (getContext, compileShader, drawShader)
-import Shader (color, num)
+import Shader (color, fract, num, p, projX)
 import Web.DOM.ParentNode (QuerySelector(..), querySelector)
 import Web.HTML (HTMLCanvasElement, window)
 import Web.HTML.HTMLCanvasElement (fromElement)
@@ -24,7 +24,10 @@ getCanvas = do
 
 source :: String
 source = "return " <> (show col) <> ";"
-  where col = color (num 1.0) (num 0.5) (num 0.5)
+  where
+    col = color g g g
+    g = fract $ (projX p) / (num 1440.0)
+
 
 render :: HTMLCanvasElement -> Effect Unit
 render canvas = do
