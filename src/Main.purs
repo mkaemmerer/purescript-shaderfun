@@ -6,6 +6,7 @@ import Data.Foldable (sequence_)
 import Data.Maybe (Maybe)
 import Effect (Effect)
 import Render (getContext, compileShader, drawShader)
+import Shader (color, num)
 import Web.DOM.ParentNode (QuerySelector(..), querySelector)
 import Web.HTML (HTMLCanvasElement, window)
 import Web.HTML.HTMLCanvasElement (fromElement)
@@ -20,10 +21,15 @@ getCanvas = do
   let canvEl = el >>= fromElement
   pure canvEl
 
+
+source :: String
+source = "return " <> (show col) <> ";"
+  where col = color (num 1.0) (num 0.5) (num 0.5)
+
 render :: HTMLCanvasElement -> Effect Unit
 render canvas = do
   let gl = getContext canvas
-  let shader = compileShader gl "return vec3(0.0,0.0,0.1);"
+  let shader = compileShader gl source
   drawShader gl shader
 
 main :: Effect Unit
