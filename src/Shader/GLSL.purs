@@ -2,16 +2,16 @@ module Shader.GLSL (toGLSL) where
 
 import Prelude
 import Data.Foldable (intercalate)
-import Shader.Expr (ShaderExpr(..), UnaryOp(..), BinaryOp(..))
+import Shader.Expr (Expr(..), UnaryOp(..), BinaryOp(..))
 
 -- Code generation
-toGLSL :: forall a. ShaderExpr a -> String
+toGLSL :: forall a. Expr a -> String
 toGLSL = fixPrecedence >>> printExpr
 
 printList :: Array String -> String
 printList = intercalate ", "
 
-printExpr :: forall a. ShaderExpr a -> String
+printExpr :: forall a. Expr a -> String
 printExpr (EVar name)          = name
 printExpr (ENum n proof)       = show n
 printExpr (EBool b proof)      = show b
@@ -22,7 +22,7 @@ printExpr (EBinary op l r)     = printBinary op l r
 printExpr (EParen e)           = "(" <> printExpr e <> ")"
 printExpr (ECall fn args)      = fn <> "(" <> printList (printExpr <$> args) <> ")"
 
-printUnary :: forall a. UnaryOp -> ShaderExpr a -> String
+printUnary :: forall a. UnaryOp -> Expr a -> String
 printUnary OpNegate e = "-" <> printExpr e
 printUnary OpNot    e = "!" <> printExpr e
 printUnary OpProjX  e = printExpr e <> ".x"
@@ -31,7 +31,7 @@ printUnary OpProjR  e = printExpr e <> ".r"
 printUnary OpProjG  e = printExpr e <> ".g"
 printUnary OpProjB  e = printExpr e <> ".b"
 
-printBinary :: forall a. BinaryOp -> ShaderExpr a -> ShaderExpr a -> String
+printBinary :: forall a. BinaryOp -> Expr a -> Expr a -> String
 printBinary op l r = intercalate " " [ printExpr l, printBinaryOp op, printExpr r ]
   where
     printBinaryOp OpEq      = "=="
@@ -88,10 +88,10 @@ binaryPrecedence OpNeq     = 8
 binaryPrecedence OpAnd     = 9
 binaryPrecedence OpOr      = 10
 
-fixPrecedence :: forall a. ShaderExpr a -> ShaderExpr a
+fixPrecedence :: forall a. Expr a -> Expr a
 fixPrecedence e = fixPrecedence' topPrec e
 
-fixPrecedence' :: forall a. Int -> ShaderExpr a -> ShaderExpr a
+fixPrecedence' :: forall a. Int -> Expr a -> Expr a
 fixPrecedence' prec (EVar name)          = EVar name
 fixPrecedence' prec (ENum n proof)       = ENum n proof
 fixPrecedence' prec (EBool b proof)      = EBool b proof
