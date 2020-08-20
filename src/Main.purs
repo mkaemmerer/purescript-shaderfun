@@ -8,7 +8,7 @@ import Data.Maybe (Maybe)
 import Data.VectorSpace ((^-^))
 import Effect (Effect)
 import Render (getContext, compileShader, drawShader)
-import Shader.Expr (Expr, color, fract, fromColor, ifE, lt, num, p, projX, projY)
+import Shader.Expr (Expr(..), bindE, color, fract, fromColor, ifE, lt, num, p, projX, projY)
 import Shader.GLSL (toGLSL)
 import Web.DOM.ParentNode (QuerySelector(..), querySelector)
 import Web.HTML (HTMLCanvasElement, window)
@@ -31,16 +31,21 @@ white = fromColor $ Color 1.0 1.0 1.0
 black :: Expr Color
 black = fromColor $ Color 0.0 0.0 0.0
 
-source :: String
-source = "return " <> (toGLSL col) <> ";"
-  where
-    point = {x: projX p, y: projY p}
-    tint = fromColor $ Color 0.5 0.0 0.5
-    col = ifE (lt point.y (num 0.0))
-      (white ^-^ (color g g g) ** tint)
-      ((color g g g) ** tint)
-    g = fract $ (point.x / (num 2880.0)) + (num 0.5)
+value :: Expr Number
+value = EVar "value"
 
+gray :: Expr Color
+gray = EVar "gray"
+
+source :: String
+source = toGLSL expr
+  where
+    tint = fromColor $ Color 0.5 0.0 0.5
+    {x, y} = {x: projX p, y: projY p}
+    expr = bindE "value" v $ bindE "gray" (g value) (col gray)
+    v = fract $ (x / (num 2880.0)) + (num 0.5)
+    g = \val -> color val val val
+    col = \c -> ifE (lt y (num 0.0)) (white ^-^ c ** tint) (c ** tint)
 
 render :: HTMLCanvasElement -> Effect Unit
 render canvas = do
