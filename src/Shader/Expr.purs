@@ -1,9 +1,10 @@
-module Shader
-  ( ShaderExpr
-  , Vec2
-  , Color
+module Shader.Expr
+  ( ShaderExpr(..)
+  , UnaryOp(..)
+  , BinaryOp(..)
   , p
   , num
+  , bool
   , vec2
   , color
   , projX
@@ -26,18 +27,18 @@ module Shader
   , absV
   , dot
   , mix
+  , fromVec2
+  , fromColor
   ) where
 
 import Prelude
-import Data.Foldable (intercalate)
+
+import Data.Color (class ColorSpace, Color(..))
 import Data.Leibniz (type (~))
+import Data.Vec2 (Vec2(..))
+import Data.VectorSpace (class AdditiveGroup, class VectorSpace, class InnerSpace, zeroV)
 import Unsafe.Coerce (unsafeCoerce)
 
-data Vec2
-  = Vec2 Number Number
-
-data Color
-  = Color Number Number Number
 
 data UnaryOp
   = OpNegate
@@ -61,9 +62,13 @@ data BinaryOp
   | OpLte
   | OpGt
   | OpGte
-  | OpVPlus
-  | OpVMinus
-  | OpScale
+  | OpPlusV
+  | OpMinusV
+  | OpScaleV
+  | OpPlusC
+  | OpMinusC
+  | OpTimesC
+  | OpScaleC
 
 data ShaderExpr t
   = EVar String
@@ -71,88 +76,30 @@ data ShaderExpr t
   | EBool Boolean (t ~ Boolean)
   | EVec2 (ShaderExpr Number) (ShaderExpr Number) (t ~ Vec2)
   | EColor (ShaderExpr Number) (ShaderExpr Number) (ShaderExpr Number) (t ~ Color)
-  | EUnary UnaryOp ShaderExpr'
-  | EBinary BinaryOp ShaderExpr' ShaderExpr'
+  | EUnary UnaryOp (forall a. ShaderExpr a)
+  | EBinary BinaryOp (forall a. ShaderExpr a) (forall a. ShaderExpr a)
   | EParen (ShaderExpr t)
-  | ECall String ShaderExprList'
+  | ECall String (forall a. Array (ShaderExpr a))
 -- | EIf (ShaderExpr Boolean) (ShaderExpr t) (ShaderExpr t)
 -- | EBind
 
-type ShaderExpr'
-  = forall a. ShaderExpr a
-
-type ShaderExprList'
-  = forall a. Array (ShaderExpr a)
-
-
--- Show instances
-instance showUnaryOp :: Show UnaryOp where
-  show OpNegate = "-"
-  show OpNot    = "!"
-  show OpProjX  = ".x"
-  show OpProjY  = ".y"
-  show OpProjR  = ".r"
-  show OpProjG  = ".g"
-  show OpProjB  = ".b"
-
-instance showBinaryOp :: Show BinaryOp where
-  show OpEq     = "=="
-  show OpNeq    = "!="
-  show OpAnd    = "&&"
-  show OpOr     = "||"
-  show OpPlus   = "+"
-  show OpMinus  = "-"
-  show OpTimes  = "*"
-  show OpDiv    = "/"
-  show OpLt     = "<"
-  show OpLte    = "<="
-  show OpGt     = ">"
-  show OpGte    = ">="
-  show OpVPlus  = "+"
-  show OpVMinus = "-"
-  show OpScale  = "*"
-
-instance showShaderExpr :: Show (ShaderExpr a) where
-  show (EVar name)          = name
-  show (ENum n proof)       = show n
-  show (EBool b proof)      = show b
-  show (EVec2 x y proof)    = "vec2(" <> showList [ x, y ] <> ")"
-  show (EColor r g b proof) = "vec3(" <> showList [ r, g, b ] <> ")"
-  show (EUnary op e)        = showUnary op e
-  show (EBinary op l r)     = showBinary op l r
-  show (EParen e)           = "(" <> show e <> ")"
-  show (ECall fn args)      = fn <> "(" <> showList args <> ")"
-
-showList :: forall a. (Show a) => Array a -> String
-showList ss = intercalate ", " (map show ss)
-
-showUnary :: forall a. UnaryOp -> ShaderExpr a -> String
-showUnary OpNegate e = "-" <> show e
-showUnary OpNot    e = "!" <> show e
-showUnary OpProjX  e = show e <> ".x"
-showUnary OpProjY  e = show e <> ".y"
-showUnary OpProjR  e = show e <> ".r"
-showUnary OpProjG  e = show e <> ".g"
-showUnary OpProjB  e = show e <> ".b"
-
-showBinary :: forall a. BinaryOp -> ShaderExpr a -> ShaderExpr a -> String
-showBinary op l r = intercalate " " [ show l, show op, show r ]
-
-
 -- Unsafe, private constructors
-unary :: forall a. forall b. UnaryOp -> ShaderExpr a -> ShaderExpr b
+unary :: forall a b. UnaryOp -> ShaderExpr a -> ShaderExpr b
 unary op e = EUnary op (unsafeCoerce e)
 
-binary :: forall a. forall b. forall c. BinaryOp -> ShaderExpr a -> ShaderExpr b -> ShaderExpr c
+binary :: forall a b c. BinaryOp -> ShaderExpr a -> ShaderExpr b -> ShaderExpr c
 binary op l r = EBinary op (unsafeCoerce l) (unsafeCoerce r)
 
-call :: forall a. String -> ShaderExprList' -> ShaderExpr a
+call :: forall t. String -> (forall a. Array (ShaderExpr a)) -> ShaderExpr t
 call fn args = ECall fn args
 
 
 -- Smart constructors
 num :: Number -> ShaderExpr Number
 num n = ENum n identity
+
+bool :: Boolean -> ShaderExpr Boolean
+bool b = EBool b identity
 
 vec2 :: ShaderExpr Number -> ShaderExpr Number -> ShaderExpr Vec2
 vec2 x y = EVec2 x y identity
@@ -163,6 +110,11 @@ color r g b = EColor r g b identity
 paren :: forall a. ShaderExpr a -> ShaderExpr a
 paren e = EParen e
 
+fromVec2 :: Vec2 -> ShaderExpr Vec2
+fromVec2 (Vec2 x y) = vec2 (num x) (num y)
+
+fromColor :: Color -> ShaderExpr Color
+fromColor (Color r g b) = color (num r) (num g) (num b)
 
 -- The input point. A variable that we have "blessed" as a vector
 p :: ShaderExpr Vec2
@@ -244,14 +196,26 @@ mix c1 c2 fac = call "mix" [ unsafeCoerce c1, unsafeCoerce c2, unsafeCoerce fac 
 
 
 -- Useful Instances
+-- Bool
+instance heytingAlgebraShaderExprBool :: HeytingAlgebra (ShaderExpr Boolean) where
+  ff = bool false
+  tt = bool true
+  disj = binary OpOr
+  conj = binary OpAnd
+  not = unary OpNot
+  implies a b = b || (not a)
+
+instance booleanAlgebraShaderExprBool :: BooleanAlgebra (ShaderExpr Boolean)
+
+-- Number
 instance semiringShaderExprNumber :: Semiring (ShaderExpr Number) where
-  zero = ENum 0.0 identity
-  one = ENum 1.0 identity
-  add e1 e2 = binary OpPlus e1 e2
-  mul e1 e2 = binary OpTimes e1 e2
+  zero = num 0.0
+  one = num 1.0
+  add = binary OpPlus
+  mul = binary OpTimes
 
 instance ringShaderExprNumber :: Ring (ShaderExpr Number) where
-  sub e1 e2 = binary OpMinus e1 e2
+  sub = binary OpMinus
 
 instance divisionRingShaderExprNumber :: DivisionRing (ShaderExpr Number) where
   recip e = binary OpDiv (num 1.0) e
@@ -259,6 +223,32 @@ instance divisionRingShaderExprNumber :: DivisionRing (ShaderExpr Number) where
 instance commutativeRingShaderExprNumber :: CommutativeRing (ShaderExpr Number)
 
 instance euclideanRingShaderExprNumber :: EuclideanRing (ShaderExpr Number) where
-  div e1 e2 = binary OpDiv e1 e2
+  div = binary OpDiv
   degree _ = 1
   mod _ _ = num 0.0 -- A proper lawful definition, but not a useful one for shader programming
+
+-- Vec2
+instance additiveGroupShaderExprVec2 :: AdditiveGroup (ShaderExpr Vec2) where
+  zeroV = fromVec2 zeroV
+  addV = binary OpPlusV
+  subV = binary OpMinusV
+  negateV = binary OpScaleV (num (-1.0))
+
+instance vectorSpaceShaderExprVec2 :: VectorSpace (ShaderExpr Number) (ShaderExpr Vec2) where
+  scale = binary OpScaleV
+
+instance innerSpaceShaderExprVec :: InnerSpace (ShaderExpr Number) (ShaderExpr Vec2) where
+  dot u v = call "dot" [ unsafeCoerce u, unsafeCoerce v ]
+
+-- Color
+instance additiveGroupShaderExprColor :: AdditiveGroup (ShaderExpr Color) where
+  zeroV = fromColor zeroV
+  addV = binary OpPlusC
+  subV = binary OpMinusC
+  negateV = binary OpScaleC (num (-1.0))
+
+instance vectorSpaceShaderExprColor :: VectorSpace (ShaderExpr Number) (ShaderExpr Color) where
+  scale = binary OpScaleC
+
+instance colorSpaceShaderExprColor :: ColorSpace (ShaderExpr Number) (ShaderExpr Color) where
+  timesC = binary OpTimesC

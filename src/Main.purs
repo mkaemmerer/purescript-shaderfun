@@ -4,9 +4,11 @@ import Prelude
 
 import Data.Foldable (sequence_)
 import Data.Maybe (Maybe)
+import Data.Color (Color(..), (**))
 import Effect (Effect)
 import Render (getContext, compileShader, drawShader)
-import Shader (color, fract, num, p, projX)
+import Shader.Expr (color, fract, num, p, projX, fromColor)
+import Shader.GLSL (toGLSL)
 import Web.DOM.ParentNode (QuerySelector(..), querySelector)
 import Web.HTML (HTMLCanvasElement, window)
 import Web.HTML.HTMLCanvasElement (fromElement)
@@ -23,10 +25,11 @@ getCanvas = do
 
 
 source :: String
-source = "return " <> (show col) <> ";"
+source = "return " <> (toGLSL col) <> ";"
   where
-    col = color g g g
-    g = fract $ (projX p) / (num 1440.0)
+    col = (color g g g) ** tint
+    tint = fromColor $ Color 0.5 0.0 0.5
+    g = fract $ ((projX p) / (num 2880.0)) + (num 0.5)
 
 
 render :: HTMLCanvasElement -> Effect Unit
