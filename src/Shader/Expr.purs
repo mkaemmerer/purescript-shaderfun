@@ -27,6 +27,13 @@ module Shader.Expr
   , absV
   , dot
   , mix
+  , eq
+  , neq
+  , lt
+  , lte
+  , gt
+  , gte
+  , ifE
   , fromVec2
   , fromColor
   ) where
@@ -80,7 +87,7 @@ data Expr t
   | EBinary BinaryOp (forall a. Expr a) (forall a. Expr a)
   | EParen (Expr t)
   | ECall String (forall a. Array (Expr a))
--- | EIf (Expr Boolean) (Expr t) (Expr t)
+  | EIf (Expr Boolean) (Expr t) (Expr t)
 -- | EBind
 
 -- Unsafe, private constructors
@@ -110,6 +117,9 @@ color r g b = EColor r g b identity
 paren :: forall a. Expr a -> Expr a
 paren e = EParen e
 
+ifE :: forall a. Expr Boolean -> Expr a -> Expr a -> Expr a
+ifE i t e = EIf i t e
+
 fromVec2 :: Vec2 -> Expr Vec2
 fromVec2 (Vec2 x y) = vec2 (num x) (num y)
 
@@ -137,6 +147,25 @@ projB c = unary OpProjB c
 
 
 -- Built-in functions
+-- Boolean functions
+lt :: Expr Number -> Expr Number -> Expr Boolean
+lt = binary OpLt
+
+lte :: Expr Number -> Expr Number -> Expr Boolean
+lte = binary OpLte
+
+gt :: Expr Number -> Expr Number -> Expr Boolean
+gt = binary OpGt
+
+gte :: Expr Number -> Expr Number -> Expr Boolean
+gte = binary OpGte
+
+eq :: Expr Number -> Expr Number -> Expr Boolean
+eq = binary OpEq
+
+neq :: Expr Number -> Expr Number -> Expr Boolean
+neq = binary OpNeq
+
 -- Scalar functions
 abs :: Expr Number -> Expr Number
 abs n = call "abs" [ unsafeCoerce n ]

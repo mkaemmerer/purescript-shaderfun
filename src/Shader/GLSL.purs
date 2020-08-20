@@ -21,6 +21,7 @@ printExpr (EUnary op e)        = printUnary op e
 printExpr (EBinary op l r)     = printBinary op l r
 printExpr (EParen e)           = "(" <> printExpr e <> ")"
 printExpr (ECall fn args)      = fn <> "(" <> printList (printExpr <$> args) <> ")"
+printExpr (EIf i t e)          = printExpr i <> " ? " <> printExpr t <> " : " <> printExpr e
 
 printUnary :: forall a. UnaryOp -> Expr a -> String
 printUnary OpNegate e = "-" <> printExpr e
@@ -107,3 +108,7 @@ fixPrecedence' prec (EBinary op l r)     = if opPrec < prec then inner else EPar
     inner = EBinary op (fixPrecedence' opPrec l) (fixPrecedence' opPrec r)
 fixPrecedence' prec (EParen e)           = EParen (fixPrecedence' topPrec e)
 fixPrecedence' prec (ECall fn args)      = ECall fn (fixPrecedence' topPrec <$> args)
+fixPrecedence' prec (EIf i t e)          = if ifPrec < prec then inner else EParen (inner)
+  where
+    ifPrec = 11
+    inner = EIf (fixPrecedence' ifPrec i) (fixPrecedence' ifPrec t) (fixPrecedence' ifPrec e)

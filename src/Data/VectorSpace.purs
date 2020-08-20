@@ -12,6 +12,7 @@ module Data.VectorSpace
   , scaleRight
   , divV
   , (^+^)
+  , (^-^)
   , (<.>)
   , (*^)
   , (^*)
@@ -42,6 +43,7 @@ divV :: forall v s. VectorSpace s v => DivisionRing s => v -> s -> v
 divV v s = v ^* (recip s)
 
 infixl 6 addV as ^+^
+infixl 6 subV as ^-^
 infixr 7 dot as <.>
 infixr 7 scale as *^
 infixr 7 scaleRight as ^*

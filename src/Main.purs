@@ -2,12 +2,13 @@ module Main where
 
 import Prelude
 
+import Data.Color (Color(..), (**))
 import Data.Foldable (sequence_)
 import Data.Maybe (Maybe)
-import Data.Color (Color(..), (**))
+import Data.VectorSpace ((^-^))
 import Effect (Effect)
 import Render (getContext, compileShader, drawShader)
-import Shader.Expr (color, fract, num, p, projX, fromColor)
+import Shader.Expr (Expr, color, fract, fromColor, ifE, lt, num, p, projX, projY)
 import Shader.GLSL (toGLSL)
 import Web.DOM.ParentNode (QuerySelector(..), querySelector)
 import Web.HTML (HTMLCanvasElement, window)
@@ -24,12 +25,21 @@ getCanvas = do
   pure canvEl
 
 
+white :: Expr Color
+white = fromColor $ Color 1.0 1.0 1.0
+
+black :: Expr Color
+black = fromColor $ Color 0.0 0.0 0.0
+
 source :: String
 source = "return " <> (toGLSL col) <> ";"
   where
-    col = (color g g g) ** tint
+    point = {x: projX p, y: projY p}
     tint = fromColor $ Color 0.5 0.0 0.5
-    g = fract $ ((projX p) / (num 2880.0)) + (num 0.5)
+    col = ifE (lt point.y (num 0.0))
+      (white ^-^ (color g g g) ** tint)
+      ((color g g g) ** tint)
+    g = fract $ (point.x / (num 2880.0)) + (num 0.5)
 
 
 render :: HTMLCanvasElement -> Effect Unit
