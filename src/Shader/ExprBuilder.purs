@@ -7,6 +7,7 @@ import Data.Tuple (Tuple(..))
 import Shader.Expr (class TypedExpr, Expr(..), bindE)
 import Unsafe.Coerce (unsafeCoerce)
 
+-- TODO: Can this be decomposed with Cont/ContT/State/StateT
 type BuilderState = { count :: Int, cont :: forall a. Expr a -> Expr a }
 type Builder a = State BuilderState a
 type ExprBuilder a = Builder (Expr a)

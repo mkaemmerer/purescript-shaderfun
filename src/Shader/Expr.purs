@@ -4,42 +4,43 @@ module Shader.Expr
   , UnaryOp(..)
   , BinaryOp(..)
   , class TypedExpr
-  , typeof
-  , p
-  , num
-  , bool
-  , vec2
-  , color
-  , projX
-  , projY
-  , length
   , abs
+  , absV
+  , atan
+  , bindE
+  , bool
+  , color
+  , cos
+  , dot
+  , eq
   , floor
   , fract
-  , smoothstep
-  , sin
-  , cos
-  , log
-  , log2
-  , saturate
-  , sqrt
-  , atan
-  , max
-  , min
-  , mod
-  , absV
-  , dot
-  , mix
-  , eq
-  , neq
-  , lt
-  , lte
+  , fromColor
+  , fromVec2
   , gt
   , gte
   , ifE
-  , bindE
-  , fromVec2
-  , fromColor
+  , length
+  , log
+  , log2
+  , lt
+  , lte
+  , max
+  , min
+  , mix
+  , mod
+  , neq
+  , num
+  , p
+  , projX
+  , projY
+  , reflect
+  , saturate
+  , sin
+  , smoothstep
+  , sqrt
+  , typeof
+  , vec2
   ) where
 
 import Prelude
@@ -224,7 +225,7 @@ sqrt :: Expr Number -> Expr Number
 sqrt n = call "sqrt" [ eraseType n ]
 
 atan :: Expr Number -> Expr Number -> Expr Number
-atan y x = call "atan2" [ eraseType y, eraseType x ]
+atan y x = call "atan" [ eraseType y, eraseType x ]
 
 max :: Expr Number -> Expr Number -> Expr Number
 max x y = call "max" [ eraseType x, eraseType y ]
@@ -247,6 +248,9 @@ length v = call "length" [ eraseType v ]
 
 dot :: Expr Vec2 -> Expr Vec2 -> Expr Number
 dot u v = call "dot" [ eraseType u, eraseType v ]
+
+reflect :: Expr Vec2 -> Expr Vec2 -> Expr Vec2
+reflect u v = call "reflect" [ eraseType u, eraseType v ]
 
 -- Color functions
 mix :: Expr Color -> Expr Color -> Expr Number -> Expr Color
