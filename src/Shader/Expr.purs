@@ -200,7 +200,7 @@ abs :: Expr Number -> Expr Number
 abs n = call "abs" [ eraseType n ]
 
 cos :: Expr Number -> Expr Number
-cos n = call "sin" [ eraseType n ]
+cos n = call "cos" [ eraseType n ]
 
 floor :: Expr Number -> Expr Number
 floor n = call "floor" [ eraseType n ]
