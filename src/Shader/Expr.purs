@@ -39,6 +39,11 @@ module Shader.Expr
   , p
   , projX
   , projY
+  , projReal
+  , projImaginary
+  , projR
+  , projG
+  , projB
   , reflect
   , saturate
   , sin
@@ -52,7 +57,6 @@ import Prelude
 
 import Data.Color (class ColorSpace, Color(..))
 import Data.Complex (Complex(..))
-import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2(..))
 import Data.VectorSpace (class AdditiveGroup, class VectorSpace, class InnerSpace, zeroV)
 import Unsafe.Coerce (unsafeCoerce)
@@ -93,6 +97,8 @@ data BinaryOp
   | OpScaleV
   | OpPlusC
   | OpMinusC
+  | OpTimesC
+  | OpDivC
   | OpScaleC
   | OpPlusCol
   | OpMinusCol
@@ -332,10 +338,7 @@ instance semiringExprComplex :: Semiring (Expr Complex) where
   zero = fromComplex zero
   one = fromComplex one
   add = binary OpPlusC
-  mul c1 c2 = complex (r1*r2 - i1*i2) (r1*i2 + r2*i1)
-    where
-    Tuple r1 i1 = Tuple (projReal c1) (projImaginary c1)
-    Tuple r2 i2 = Tuple (projReal c2) (projImaginary c2)
+  mul = binary OpTimesC
 
 instance ringExprComplex :: Ring (Expr Complex) where
   sub = binary OpMinusC
@@ -345,13 +348,7 @@ instance commutativeRingExprComplex :: CommutativeRing (Expr Complex)
 instance euclideanRingExprComplex :: EuclideanRing (Expr Complex) where
   degree _ = 1
   mod _ _ = fromComplex zero -- A proper lawful definition, but not a useful one for shader programming
-  div c1 c2 = complex nr ni
-    where
-    Tuple r1 i1 = Tuple (projReal c1) (projImaginary c1)
-    Tuple r2 i2 = Tuple (projReal c2) (projImaginary c2)
-    nr = (r1*r2 + i1*i2) / d
-    ni = (r2*i1 - r1*i2) / d
-    d  = r2*r2 + i2*i2
+  div = binary OpDivC
 
 instance divisionRingExprComplex :: DivisionRing (Expr Complex) where
   recip e = one / e

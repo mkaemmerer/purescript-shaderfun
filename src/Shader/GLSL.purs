@@ -5,7 +5,8 @@ import Prelude
 import Control.Monad.Cont (Cont, runCont, callCC)
 import Data.Foldable (intercalate)
 import Data.Traversable (sequence)
-import Shader.Expr (BinaryOp(..), Expr(..), Type(..), UnaryOp(..))
+import Data.Tuple (Tuple(..))
+import Shader.Expr (BinaryOp(..), Expr(..), Type(..), UnaryOp(..), complex, projImaginary, projReal)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- Code generation
@@ -81,10 +82,42 @@ printBinary op l r = intercalate " " [ printExpr' l, printBinaryOp op, printExpr
     printBinaryOp OpMinusCol  = "-"
     printBinaryOp OpTimesCol  = "*"
     printBinaryOp OpScaleCol  = "*"
+    printBinaryOp OpDivC      = "" -- GLSL has no builtin operation. Handle by "elaborating"
+    printBinaryOp OpTimesC    = "" -- GLSL has no builtin operation. Handle by "elaborating"
 
 -- Normalization 
 normalize :: forall a. Expr a -> Expr a
-normalize = liftDecl >>> fixPrecedence
+normalize = elaborate >>> liftDecl >>> fixPrecedence
+
+elaborate :: forall a. Expr a -> Expr a
+elaborate (EBinary OpTimesC c1 c2) = eraseType $ complex (r1*r2 - i1*i2) (r1*i2 + r2*i1)
+  where
+  c1' = elaborate c1
+  c2' = elaborate c2
+  Tuple r1 i1 = Tuple (projReal c1') (projImaginary c1')
+  Tuple r2 i2 = Tuple (projReal c2') (projImaginary c2')
+elaborate (EBinary OpDivC c1 c2) = eraseType $ complex nr ni
+  where
+  c1' = elaborate c1
+  c2' = elaborate c2
+  Tuple r1 i1 = Tuple (projReal c1') (projImaginary c1')
+  Tuple r2 i2 = Tuple (projReal c2') (projImaginary c2')
+  nr = (r1*r2 + i1*i2) / d
+  ni = (r2*i1 - r1*i2) / d
+  d  = r2*r2 + i2*i2
+-- Other cases
+elaborate (EVar name)              = EVar name
+elaborate (ENum n)                 = ENum n
+elaborate (EBool b)                = EBool b
+elaborate (EVec2 x y)              = EVec2 (elaborate x) (elaborate y)
+elaborate (EComplex r i)           = EComplex (elaborate r) (elaborate i)
+elaborate (EColor r g b)           = EColor (elaborate r) (elaborate g) (elaborate b)
+elaborate (EUnary op e)            = EUnary op (elaborate e)
+elaborate (EBinary op l r)         = EBinary op (elaborate l) (elaborate r)
+elaborate (EParen e)               = EParen (elaborate e)
+elaborate (ECall fn args)          = ECall fn (elaborate <$> args)
+elaborate (EIf i t e)              = EIf (elaborate i) (elaborate t) (elaborate e)
+elaborate (EBind name ty val body) = EBind name ty (elaborate val) (elaborate body)
 
 topPrec :: Int
 topPrec = 100
@@ -105,6 +138,8 @@ binaryPrecedence OpTimes     = 3
 binaryPrecedence OpDiv       = 3
 binaryPrecedence OpScaleV    = 4
 binaryPrecedence OpScaleC    = 4
+binaryPrecedence OpTimesC    = 4
+binaryPrecedence OpDivC      = 4
 binaryPrecedence OpScaleCol  = 4
 binaryPrecedence OpTimesCol  = 4
 binaryPrecedence OpPlus      = 5
