@@ -11,6 +11,7 @@ module Data.VectorSpace
   , scaleLeft
   , scaleRight
   , divV
+  , magnitudeSquared
   , (^+^)
   , (^-^)
   , (<.>)
@@ -48,3 +49,6 @@ infixr 7 dot as <.>
 infixr 7 scale as *^
 infixr 7 scaleRight as ^*
 infixr 7 divV as ^/
+
+magnitudeSquared :: forall v s. InnerSpace s v => v -> s
+magnitudeSquared v = v <.> v

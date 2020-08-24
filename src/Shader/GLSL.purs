@@ -29,6 +29,7 @@ printExpr' (EVar name)              = name
 printExpr' (ENum n)                 = show n
 printExpr' (EBool b)                = show b
 printExpr' (EVec2 x y)              = "vec2(" <> printList [ printExpr' x, printExpr' y ] <> ")"
+printExpr' (EComplex r i)           = "vec2(" <> printList [ printExpr' r, printExpr' i ] <> ")"
 printExpr' (EColor r g b)           = "vec3(" <> printList [ printExpr' r, printExpr' g, printExpr' b ] <> ")"
 printExpr' (EUnary op e)            = printUnary op e
 printExpr' (EBinary op l r)         = printBinary op l r
@@ -41,6 +42,7 @@ printType :: Type -> String
 printType TBoolean = "bool"
 printType TScalar  = "float"
 printType TVec2    = "vec2"
+printType TComplex = "vec2"
 printType TColor   = "vec3"
 
 printUnary :: forall a. UnaryOp -> Expr a -> String
@@ -51,29 +53,34 @@ printUnary OpProjY  e = printExpr' e <> ".y"
 printUnary OpProjR  e = printExpr' e <> ".r"
 printUnary OpProjG  e = printExpr' e <> ".g"
 printUnary OpProjB  e = printExpr' e <> ".b"
+printUnary OpProjReal       e = printExpr' e <> ".x"
+printUnary OpProjImaginary  e = printExpr' e <> ".y"
 
 printBinary :: forall a. BinaryOp -> Expr a -> Expr a -> String
 printBinary op l r = intercalate " " [ printExpr' l, printBinaryOp op, printExpr' r ]
   where
-    printBinaryOp OpEq      = "=="
-    printBinaryOp OpNeq     = "!="
-    printBinaryOp OpAnd     = "&&"
-    printBinaryOp OpOr      = "||"
-    printBinaryOp OpPlus    = "+"
-    printBinaryOp OpMinus   = "-"
-    printBinaryOp OpTimes   = "*"
-    printBinaryOp OpDiv     = "/"
-    printBinaryOp OpLt      = "<"
-    printBinaryOp OpLte     = "<="
-    printBinaryOp OpGt      = ">"
-    printBinaryOp OpGte     = ">="
-    printBinaryOp OpPlusV   = "+"
-    printBinaryOp OpMinusV  = "-"
-    printBinaryOp OpScaleV  = "*"
-    printBinaryOp OpPlusC   = "+"
-    printBinaryOp OpMinusC  = "-"
-    printBinaryOp OpTimesC  = "*"
-    printBinaryOp OpScaleC  = "*"
+    printBinaryOp OpEq        = "=="
+    printBinaryOp OpNeq       = "!="
+    printBinaryOp OpAnd       = "&&"
+    printBinaryOp OpOr        = "||"
+    printBinaryOp OpLt        = "<"
+    printBinaryOp OpLte       = "<="
+    printBinaryOp OpGt        = ">"
+    printBinaryOp OpGte       = ">="
+    printBinaryOp OpPlus      = "+"
+    printBinaryOp OpMinus     = "-"
+    printBinaryOp OpTimes     = "*"
+    printBinaryOp OpDiv       = "/"
+    printBinaryOp OpPlusV     = "+"
+    printBinaryOp OpMinusV    = "-"
+    printBinaryOp OpScaleV    = "*"
+    printBinaryOp OpPlusC     = "+"
+    printBinaryOp OpMinusC    = "-"
+    printBinaryOp OpScaleC    = "*"
+    printBinaryOp OpPlusCol   = "+"
+    printBinaryOp OpMinusCol  = "-"
+    printBinaryOp OpTimesCol  = "*"
+    printBinaryOp OpScaleCol  = "*"
 
 -- Normalization 
 normalize :: forall a. Expr a -> Expr a
@@ -90,39 +97,48 @@ unaryPrecedence OpProjY  = 2
 unaryPrecedence OpProjR  = 2
 unaryPrecedence OpProjG  = 2
 unaryPrecedence OpProjB  = 2
+unaryPrecedence OpProjReal      = 2
+unaryPrecedence OpProjImaginary = 2
 
 binaryPrecedence :: BinaryOp -> Int
-binaryPrecedence OpTimes   = 3
-binaryPrecedence OpDiv     = 3
-binaryPrecedence OpScaleV  = 4
-binaryPrecedence OpTimesC  = 4
-binaryPrecedence OpScaleC  = 4
-binaryPrecedence OpPlus    = 5
-binaryPrecedence OpMinus   = 5
-binaryPrecedence OpPlusV   = 6
-binaryPrecedence OpMinusV  = 6
-binaryPrecedence OpPlusC   = 6
-binaryPrecedence OpMinusC  = 6
-binaryPrecedence OpLt      = 7
-binaryPrecedence OpLte     = 7
-binaryPrecedence OpGt      = 7
-binaryPrecedence OpGte     = 7
-binaryPrecedence OpEq      = 8
-binaryPrecedence OpNeq     = 8
-binaryPrecedence OpAnd     = 9
-binaryPrecedence OpOr      = 10
+binaryPrecedence OpTimes     = 3
+binaryPrecedence OpDiv       = 3
+binaryPrecedence OpScaleV    = 4
+binaryPrecedence OpScaleC    = 4
+binaryPrecedence OpScaleCol  = 4
+binaryPrecedence OpTimesCol  = 4
+binaryPrecedence OpPlus      = 5
+binaryPrecedence OpPlusV     = 6
+binaryPrecedence OpPlusC     = 6
+binaryPrecedence OpPlusCol   = 6
+binaryPrecedence OpMinus     = 5
+binaryPrecedence OpMinusV    = 6
+binaryPrecedence OpMinusC    = 6
+binaryPrecedence OpMinusCol  = 6
+binaryPrecedence OpLt        = 7
+binaryPrecedence OpLte       = 7
+binaryPrecedence OpGt        = 7
+binaryPrecedence OpGte       = 7
+binaryPrecedence OpEq        = 8
+binaryPrecedence OpNeq       = 8
+binaryPrecedence OpAnd       = 9
+binaryPrecedence OpOr        = 10
 
 fixPrecedence :: forall a. Expr a -> Expr a
 fixPrecedence e = fixPrecedence' topPrec e
 
 fixPrecedence' :: forall a. Int -> Expr a -> Expr a
 fixPrecedence' prec (EVar name) = EVar name
-fixPrecedence' prec (ENum n) = ENum n
 fixPrecedence' prec (EBool b) = EBool b
+fixPrecedence' prec (ENum n) = ENum n
 fixPrecedence' prec (EVec2 x y) = EVec2 x' y'
   where
     x' = fixPrecedence' topPrec x
     y' = fixPrecedence' topPrec y
+fixPrecedence' prec (EComplex r i) = EComplex r' i'
+  where
+    r' = fixPrecedence' topPrec r
+    i' = fixPrecedence' topPrec i
 fixPrecedence' prec (EColor r g b) = EColor r' g' b'
   where
     r' = fixPrecedence' topPrec r
@@ -158,12 +174,16 @@ liftDecl e = runCont (liftDecl' e) id
 
 liftDecl' :: forall a b. Expr a -> Cont (Expr b) (Expr a)
 liftDecl' (EVar name) = callCC $ (#) $ EVar name
-liftDecl' (ENum n) = callCC $ (#) $ ENum n
 liftDecl' (EBool b) = callCC $ (#) $ EBool b
+liftDecl' (ENum n) = callCC $ (#) $ ENum n
 liftDecl' (EVec2 x y) = do
   x' <- liftDecl' x
   y' <- liftDecl' y
   callCC $ (#) $ EVec2 x' y'
+liftDecl' (EComplex r i) = do
+  r' <- liftDecl' r
+  i' <- liftDecl' i
+  callCC $ (#) $ EComplex r' i'
 liftDecl' (EColor r g b) = do
   r' <- liftDecl' r
   g' <- liftDecl' g

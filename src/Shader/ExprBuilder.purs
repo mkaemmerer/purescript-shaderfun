@@ -8,6 +8,7 @@ import Shader.Expr (class TypedExpr, Expr(..), bindE)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- TODO: Can this be decomposed with Cont/ContT/State/StateT
+-- TODO: Hide builder state with existential type?
 type BuilderState = { count :: Int, cont :: forall a. Expr a -> Expr a }
 type Builder a = State BuilderState a
 type ExprBuilder a = Builder (Expr a)

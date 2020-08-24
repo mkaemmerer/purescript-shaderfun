@@ -74,7 +74,6 @@ box corner p = do
   m <- decl $ (min (max (projX d) (projY d)) zero)
   pure $ (length c) + m
 
--- TODO: Restrict this to arrays with at least 3 elements? Return a maybe?
 polygon :: Partial => Array Vec2 -> SDF2
 polygon vs
   | Array.length vs >= 3 = polygon' $ fromJust $ fromArray vs

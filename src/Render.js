@@ -83,7 +83,7 @@ const compileShader = (gl, source) => {
     }
   `
 
-  console.log(fragmentShaderSource)
+  // console.log(fragmentShaderSource)
 
   return initShader(gl, { vertexShaderSource, fragmentShaderSource })
 }

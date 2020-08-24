@@ -10,13 +10,18 @@ module Shader.Expr
   , bindE
   , bool
   , color
+  , complex
   , cos
-  , dot
+  , dotC
+  , dotV
   , eq
   , floor
   , fract
   , fromColor
+  , fromComplex
   , fromVec2
+  , complexToVec2
+  , vec2ToComplex
   , gt
   , gte
   , ifE
@@ -46,6 +51,8 @@ module Shader.Expr
 import Prelude
 
 import Data.Color (class ColorSpace, Color(..))
+import Data.Complex (Complex(..))
+import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2(..))
 import Data.VectorSpace (class AdditiveGroup, class VectorSpace, class InnerSpace, zeroV)
 import Unsafe.Coerce (unsafeCoerce)
@@ -54,6 +61,7 @@ data Type
   = TBoolean
   | TScalar
   | TVec2
+  | TComplex
   | TColor
 
 data UnaryOp
@@ -61,6 +69,8 @@ data UnaryOp
   | OpNot
   | OpProjX
   | OpProjY
+  | OpProjReal
+  | OpProjImaginary
   | OpProjR
   | OpProjG
   | OpProjB
@@ -70,27 +80,31 @@ data BinaryOp
   | OpNeq
   | OpAnd
   | OpOr
-  | OpPlus
-  | OpMinus
-  | OpTimes
-  | OpDiv
   | OpLt
   | OpLte
   | OpGt
   | OpGte
+  | OpPlus
+  | OpMinus
+  | OpTimes
+  | OpDiv
   | OpPlusV
   | OpMinusV
   | OpScaleV
   | OpPlusC
   | OpMinusC
-  | OpTimesC
   | OpScaleC
+  | OpPlusCol
+  | OpMinusCol
+  | OpTimesCol
+  | OpScaleCol
 
 data Expr t
   = EVar String
-  | ENum Number
   | EBool Boolean
+  | ENum Number
   | EVec2 (Expr Number) (Expr Number)
+  | EComplex (Expr Number) (Expr Number)
   | EColor (Expr Number) (Expr Number) (Expr Number)
   | EUnary UnaryOp (forall a. Expr a)
   | EBinary BinaryOp (forall a. Expr a) (forall a. Expr a)
@@ -112,6 +126,9 @@ instance typedExprExprNumber :: TypedExpr (Expr Number) where
 instance typedExprExprVec2 :: TypedExpr (Expr Vec2) where
   typeof e = TVec2
 
+instance typedExprExprComplex :: TypedExpr (Expr Complex) where
+  typeof e = TComplex
+
 instance typedExprExprColor :: TypedExpr (Expr Color) where
   typeof e = TColor
 
@@ -129,14 +146,17 @@ call :: forall t. String -> (forall a. Array (Expr a)) -> Expr t
 call fn args = ECall fn args
 
 -- Smart constructors
-num :: Number -> Expr Number
-num n = ENum n
-
 bool :: Boolean -> Expr Boolean
 bool b = EBool b
 
+num :: Number -> Expr Number
+num n = ENum n
+
 vec2 :: Expr Number -> Expr Number -> Expr Vec2
 vec2 x y = EVec2 x y
+
+complex :: Expr Number -> Expr Number -> Expr Complex
+complex r i = EComplex r i
 
 color :: Expr Number -> Expr Number -> Expr Number -> Expr Color
 color r g b = EColor r g b
@@ -153,8 +173,17 @@ bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
 fromVec2 :: Vec2 -> Expr Vec2
 fromVec2 (Vec2 x y) = vec2 (num x) (num y)
 
+fromComplex :: Complex -> Expr Complex
+fromComplex (Complex r i) = complex (num r) (num i)
+
 fromColor :: Color -> Expr Color
 fromColor (Color r g b) = color (num r) (num g) (num b)
+
+complexToVec2 :: Expr Complex -> Expr Vec2
+complexToVec2 = unsafeCoerce
+
+vec2ToComplex :: Expr Vec2 -> Expr Complex
+vec2ToComplex = unsafeCoerce
 
 -- The input point. A variable that we have "blessed" as a vector
 p :: Expr Vec2
@@ -165,6 +194,12 @@ projX v = unary OpProjX v
 
 projY :: Expr Vec2 -> Expr Number
 projY v = unary OpProjY v
+
+projReal :: Expr Complex -> Expr Number
+projReal c = unary OpProjReal c
+
+projImaginary :: Expr Complex -> Expr Number
+projImaginary c = unary OpProjImaginary c
 
 projR :: Expr Color -> Expr Number
 projR c = unary OpProjR c
@@ -246,8 +281,11 @@ absV v = call "abs" [ eraseType v ]
 length :: Expr Vec2 -> Expr Number
 length v = call "length" [ eraseType v ]
 
-dot :: Expr Vec2 -> Expr Vec2 -> Expr Number
-dot u v = call "dot" [ eraseType u, eraseType v ]
+dotV :: Expr Vec2 -> Expr Vec2 -> Expr Number
+dotV u v = call "dot" [ eraseType u, eraseType v ]
+
+dotC :: Expr Complex -> Expr Complex -> Expr Number
+dotC u v = call "dot" [ eraseType u, eraseType v ]
 
 reflect :: Expr Vec2 -> Expr Vec2 -> Expr Vec2
 reflect u v = call "reflect" [ eraseType u, eraseType v ]
@@ -271,23 +309,65 @@ instance booleanAlgebraExprBool :: BooleanAlgebra (Expr Boolean)
 
 -- Number
 instance semiringExprNumber :: Semiring (Expr Number) where
-  zero = num 0.0
-  one = num 1.0
+  zero = num zero
+  one = num one
   add = binary OpPlus
   mul = binary OpTimes
 
 instance ringExprNumber :: Ring (Expr Number) where
   sub = binary OpMinus
 
-instance divisionRingExprNumber :: DivisionRing (Expr Number) where
-  recip e = binary OpDiv (num 1.0) e
-
 instance commutativeRingExprNumber :: CommutativeRing (Expr Number)
 
 instance euclideanRingExprNumber :: EuclideanRing (Expr Number) where
   div = binary OpDiv
   degree _ = 1
-  mod _ _ = num 0.0 -- A proper lawful definition, but not a useful one for shader programming
+  mod _ _ = num zero -- A proper lawful definition, but not a useful one for shader programming
+
+instance divisionRingExprNumber :: DivisionRing (Expr Number) where
+  recip e = one / e
+
+-- Complex
+instance semiringExprComplex :: Semiring (Expr Complex) where
+  zero = fromComplex zero
+  one = fromComplex one
+  add = binary OpPlusC
+  mul c1 c2 = complex (r1*r2 - i1*i2) (r1*i2 + r2*i1)
+    where
+    Tuple r1 i1 = Tuple (projReal c1) (projImaginary c1)
+    Tuple r2 i2 = Tuple (projReal c2) (projImaginary c2)
+
+instance ringExprComplex :: Ring (Expr Complex) where
+  sub = binary OpMinusC
+
+instance commutativeRingExprComplex :: CommutativeRing (Expr Complex)
+
+instance euclideanRingExprComplex :: EuclideanRing (Expr Complex) where
+  degree _ = 1
+  mod _ _ = fromComplex zero -- A proper lawful definition, but not a useful one for shader programming
+  div c1 c2 = complex nr ni
+    where
+    Tuple r1 i1 = Tuple (projReal c1) (projImaginary c1)
+    Tuple r2 i2 = Tuple (projReal c2) (projImaginary c2)
+    nr = (r1*r2 + i1*i2) / d
+    ni = (r2*i1 - r1*i2) / d
+    d  = r2*r2 + i2*i2
+
+instance divisionRingExprComplex :: DivisionRing (Expr Complex) where
+  recip e = one / e
+
+instance additiveGroupExprComplex :: AdditiveGroup (Expr Complex) where
+  zeroV = zero
+  addV = add
+  subV = sub
+  negateV = binary OpScaleC (num (-1.0))
+
+instance vectorSpaceExprComplex :: VectorSpace (Expr Number) (Expr Complex) where
+  scale = binary OpScaleC
+
+instance innerSpaceExprComplex :: InnerSpace (Expr Number) (Expr Complex) where
+  dot = dotC
+
 
 -- Vec2
 instance additiveGroupExprVec2 :: AdditiveGroup (Expr Vec2) where
@@ -300,17 +380,17 @@ instance vectorSpaceExprVec2 :: VectorSpace (Expr Number) (Expr Vec2) where
   scale = binary OpScaleV
 
 instance innerSpaceExprVec :: InnerSpace (Expr Number) (Expr Vec2) where
-  dot u v = call "dot" [ unsafeCoerce u, unsafeCoerce v ]
+  dot = dotV
 
 -- Color
 instance additiveGroupExprColor :: AdditiveGroup (Expr Color) where
   zeroV = fromColor zeroV
-  addV = binary OpPlusC
-  subV = binary OpMinusC
-  negateV = binary OpScaleC (num (-1.0))
+  addV = binary OpPlusCol
+  subV = binary OpMinusCol
+  negateV = binary OpScaleCol (num (-1.0))
 
 instance vectorSpaceExprColor :: VectorSpace (Expr Number) (Expr Color) where
-  scale = binary OpScaleC
+  scale = binary OpScaleCol
 
 instance colorSpaceExprColor :: ColorSpace (Expr Number) (Expr Color) where
-  timesC = binary OpTimesC
+  timesC = binary OpTimesCol
