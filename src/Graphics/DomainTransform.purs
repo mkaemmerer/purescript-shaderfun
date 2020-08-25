@@ -7,6 +7,9 @@ module Graphics.DomainTransform
   , mirror
   , mirrorX
   , mirrorY
+  , reflect
+  , reflectX
+  , reflectY
   , repeatX
   , repeatY
   , repeatXY

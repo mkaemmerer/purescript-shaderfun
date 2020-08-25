@@ -1,8 +1,8 @@
-module Graphics.Fractal (repeatM, juliaSet, mandelbrotSet) where
+module Graphics.Fractal (repeatM, repeatC, juliaSet, mandelbrotSet) where
 
 import Prelude
 
-import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM2)
+import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRec, tailRecM2)
 import Data.Complex (Complex)
 import Data.Int (toNumber)
 import Data.Tuple (Tuple(..))
@@ -16,11 +16,17 @@ type Point = Expr Complex
 type IterCount = Expr Number
 
 repeatM :: forall m a. MonadRec m => Int -> (a -> m a) -> a -> m a
-repeatM i action seed = tailRecM2 go i seed
+repeatM n action seed = tailRecM2 go n seed
   where
-  go i' seed'
-    | i' <= 0    = pure $ Done seed'
-    | otherwise = action seed' <#> (\b -> Loop { a: (i'-1), b: b })
+  go n' seed'
+    | n' <= 0    = pure $ Done seed'
+    | otherwise = action seed' <#> (\b -> Loop { a: (n'-1), b: b })
+
+repeatC :: forall a f. (Category f) => Int -> f a a -> f a a
+repeatC n f = tailRec go { acc: identity, count: n }
+  where
+  go { acc, count: 0 } = Done acc
+  go { acc, count }    = Loop { acc: f >>> acc, count: count - 1}
 
 orbitStep :: Point -> Tuple Point IterCount -> Builder (Tuple Point IterCount)
 orbitStep c (Tuple z t) = do
@@ -31,23 +37,23 @@ orbitStep c (Tuple z t) = do
   pure (Tuple z' t')
 
 juliaSet :: Int -> Complex -> ShaderFunc Vec2 Number
-juliaSet i c z = do
+juliaSet n c z = do
   let c' = fromComplex c
-  let i' = num $ toNumber i
+  let n' = num $ toNumber n
   -- (point, iteration count)
-  (Tuple z' t') <- repeatM i (orbitStep c') (Tuple (vec2ToComplex z) zero)
+  (Tuple z' t') <- repeatM n (orbitStep c') (Tuple (vec2ToComplex z) zero)
   -- Smooth iteration count
   d <- decl $ t' - (log2 $ log2 $ magnitudeSquared $ z')
-  f <- decl $ d / i'
+  f <- decl $ d / n'
   pure f
 
 mandelbrotSet :: Int -> ShaderFunc Vec2 Number
-mandelbrotSet i c = do
+mandelbrotSet n c = do
   let c' = vec2ToComplex c
-  let i' = num $ toNumber i
+  let n' = num $ toNumber n
   -- (point, iteration count)
-  (Tuple z' t') <- repeatM i (orbitStep c') (Tuple zero zero)
+  (Tuple z' t') <- repeatM n (orbitStep c') (Tuple zero zero)
   -- Smooth iteration count
   d <- decl $ t' - (log2 $ log2 $ magnitudeSquared $ z')
-  f <- decl $ d / i'
+  f <- decl $ d / n'
   pure f
