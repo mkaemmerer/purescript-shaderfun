@@ -6,8 +6,7 @@ import Data.VectorSpace (class AdditiveGroup, class InnerSpace, class VectorSpac
 data Complex
   = Complex Number Number
 
-instance eqComplex :: Eq Complex where
-  eq (Complex r i) (Complex r' i') = r == r' && i == i'
+derive instance eqComplex :: Eq Complex
 
 -- Field instances
 instance semiringComplex :: Semiring Complex where

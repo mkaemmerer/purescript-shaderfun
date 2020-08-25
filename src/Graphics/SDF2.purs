@@ -29,8 +29,7 @@ import Data.VectorSpace ((*^), (^+^), (^-^), (<.>))
 import Graphics.DomainTransform (repeatLogPolar, scale)
 import Math (tau)
 import Shader.Expr (Expr, abs, absV, fromVec2, gt, gte, ifE, length, lt, max, min, num, projX, projY, saturate, sqrt, vec2)
-import Shader.ExprBuilder (decl)
-import Shader.Function (ShaderFunc)
+import Shader.ExprBuilder (ShaderFunc, decl)
 
 type SDF2
   = ShaderFunc Vec2 Number

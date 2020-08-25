@@ -2,6 +2,7 @@ module Example.Polygon (source) where
 
 import Prelude
 
+import Data.Color (Color)
 import Data.Vec2 (Vec2(..))
 import Graphics.ColorRamp (signRamp)
 import Graphics.DomainTransform (repeatGrid, repeatPolar)
@@ -9,11 +10,11 @@ import Graphics.SDF2 (dilate, polygon)
 import Math (tan, tau)
 import Partial.Unsafe (unsafePartial)
 import Shader.ExprBuilder (decl)
-import Shader.Function (ShaderProgram, runShaderProgram)
+import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
 
-program :: ShaderProgram
-program = geometry >=> decl >=> signRamp
+program :: ShaderProgram Vec2 Color
+program = shaderProgram $ geometry >=> decl >=> signRamp
   where
     count = 5.0
     a = tau / (count * 2.0)

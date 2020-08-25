@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Color (Color(..))
 import Shader.Expr (Expr, color, fromColor, gt, ifE, num)
-import Shader.Function (ShaderFunc)
+import Shader.ExprBuilder (ShaderFunc)
 
 type ColorRamp = ShaderFunc Number Color
 

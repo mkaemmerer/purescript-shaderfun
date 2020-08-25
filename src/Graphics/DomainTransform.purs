@@ -26,8 +26,7 @@ import Data.VectorSpace ((^-^), (*^), (<.>))
 import Math (tau)
 import Shader.Expr (abs, atan, cos, fromVec2, length, log, max, mod, num, projX, projY, sin, vec2)
 import Shader.Expr (reflect) as S
-import Shader.ExprBuilder (decl)
-import Shader.Function (ShaderFunc)
+import Shader.ExprBuilder (decl, ShaderFunc)
 
 liftF :: forall f a b. Applicative f => (a -> b) -> a -> f b
 liftF f a = pure $ f a

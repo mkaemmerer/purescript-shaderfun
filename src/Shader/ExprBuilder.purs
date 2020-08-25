@@ -1,4 +1,4 @@
-module Shader.ExprBuilder (Builder, ExprBuilder, BuilderState, decl, runExprBuilder) where
+module Shader.ExprBuilder (Builder, ExprBuilder, ShaderFunc, BuilderState, decl, runExprBuilder) where
 
 import Prelude
 
@@ -11,7 +11,9 @@ import Unsafe.Coerce (unsafeCoerce)
 -- TODO: Hide builder state with existential type?
 type BuilderState = { count :: Int, cont :: forall a. Expr a -> Expr a }
 type Builder a = State BuilderState a
+
 type ExprBuilder a = Builder (Expr a)
+type ShaderFunc a b = Expr a -> ExprBuilder b
 
 emptyState :: BuilderState
 emptyState = { count: 0, cont: identity }

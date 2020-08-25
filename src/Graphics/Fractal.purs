@@ -9,8 +9,7 @@ import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
 import Data.VectorSpace (magnitudeSquared)
 import Shader.Expr (Expr, fromComplex, gt, ifE, log2, num, vec2ToComplex)
-import Shader.ExprBuilder (Builder, decl)
-import Shader.Function (ShaderFunc)
+import Shader.ExprBuilder (ShaderFunc, Builder, decl)
 
 type Point = Expr Complex
 type IterCount = Expr Number
