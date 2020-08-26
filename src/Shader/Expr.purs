@@ -55,7 +55,7 @@ module Shader.Expr
 
 import Prelude
 
-import Data.Color (class ColorSpace, Color(..))
+import Data.Color (Color(..))
 import Data.Complex (Complex(..))
 import Data.Vec2 (Vec2(..))
 import Data.VectorSpace (class AdditiveGroup, class VectorSpace, class InnerSpace, zeroV)
@@ -313,6 +313,7 @@ instance heytingAlgebraExprBool :: HeytingAlgebra (Expr Boolean) where
 
 instance booleanAlgebraExprBool :: BooleanAlgebra (Expr Boolean)
 
+
 -- Number
 instance semiringExprNumber :: Semiring (Expr Number) where
   zero = num zero
@@ -332,6 +333,19 @@ instance euclideanRingExprNumber :: EuclideanRing (Expr Number) where
 
 instance divisionRingExprNumber :: DivisionRing (Expr Number) where
   recip e = one / e
+
+instance additevGroupExprNumber :: AdditiveGroup (Expr Number) where
+  zeroV = zero
+  addV = add
+  subV = sub
+  negateV = unary OpNegate
+
+instance vectorSpaceExprNumber :: VectorSpace (Expr Number) (Expr Number) where
+  scale = mul
+
+instance innerSpaceExprNumber :: InnerSpace (Expr Number) (Expr Number) where
+  dot = mul
+
 
 -- Complex
 instance semiringExprComplex :: Semiring (Expr Complex) where
@@ -380,6 +394,12 @@ instance innerSpaceExprVec :: InnerSpace (Expr Number) (Expr Vec2) where
   dot = dotV
 
 -- Color
+instance semiringExprColor :: Semiring (Expr Color) where
+  zero = fromColor zero
+  one = fromColor one
+  add = binary OpPlusCol
+  mul = binary OpTimesCol
+
 instance additiveGroupExprColor :: AdditiveGroup (Expr Color) where
   zeroV = fromColor zeroV
   addV = binary OpPlusCol
@@ -388,6 +408,3 @@ instance additiveGroupExprColor :: AdditiveGroup (Expr Color) where
 
 instance vectorSpaceExprColor :: VectorSpace (Expr Number) (Expr Color) where
   scale = binary OpScaleCol
-
-instance colorSpaceExprColor :: ColorSpace (Expr Number) (Expr Color) where
-  timesC = binary OpTimesCol

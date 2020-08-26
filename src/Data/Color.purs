@@ -1,4 +1,4 @@
-module Data.Color (Color(..), class ColorSpace, timesC, (**)) where
+module Data.Color (Color(..)) where
 
 import Prelude
 
@@ -6,6 +6,12 @@ import Data.VectorSpace (class AdditiveGroup, class VectorSpace)
 
 data Color
   = Color Number Number Number
+
+instance semiringColor :: Semiring Color where
+  zero = Color 0.0 0.0 0.0
+  one = Color 1.0 1.0 1.0
+  add (Color r1 g1 b1) (Color r2 g2 b2) = Color (r1 + r2) (g1 + g2) (b1 + b2)
+  mul (Color r1 g1 b1) (Color r2 g2 b2) = Color (r1 * r2) (g1 * g2) (b1 * b2)
 
 instance additiveGroupColor :: AdditiveGroup Color where
   zeroV = Color 0.0 0.0 0.0
@@ -15,12 +21,3 @@ instance additiveGroupColor :: AdditiveGroup Color where
 
 instance vectorSpaceColor :: VectorSpace Number Color where
   scale s (Color r g b) = Color (s*r) (s*g) (s*b)
-
-
-class (VectorSpace scalar color) <= ColorSpace scalar color | color -> scalar where
-  timesC :: color -> color -> color
-
-instance colorSpaceColor :: ColorSpace Number Color where
-  timesC (Color r1 g1 b1) (Color r2 g2 b2) = Color (r1*r2) (g1*g2) (b1*b2)
-
-infixr 7 timesC as **

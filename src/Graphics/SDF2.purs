@@ -25,7 +25,7 @@ import Data.Array (length) as Array
 import Data.Maybe (fromJust)
 import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
-import Data.VectorSpace ((*^), (^+^), (^-^), (<.>))
+import Data.VectorSpace ((*^), (^+^), (^-^), (<.>), lerp)
 import Graphics.DomainTransform (repeatLogPolar, scale)
 import Math (tau)
 import Shader.Expr (Expr, abs, absV, fromVec2, gt, gte, ifE, length, lt, max, min, num, projX, projY, saturate, sqrt, vec2)
@@ -129,10 +129,6 @@ difference = lift2 $ lift2 $ \x y -> max x (negate y)
 
 blend :: Number -> SDF2 -> SDF2 -> SDF2
 blend fac = lift2 $ lift2 $ lerp (num fac)
-
--- TODO: generalize to vector spaces
-lerp :: forall a. (Ring a) => a -> a -> a -> a
-lerp fac x y = fac * x + (one - fac) * y
 
 -- Morphology
 dilate :: Number -> SDF2 -> SDF2
