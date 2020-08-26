@@ -400,6 +400,9 @@ instance semiringExprColor :: Semiring (Expr Color) where
   add = binary OpPlusCol
   mul = binary OpTimesCol
 
+instance ringExprColor :: Ring (Expr Color) where
+  sub = binary OpMinusCol
+
 instance additiveGroupExprColor :: AdditiveGroup (Expr Color) where
   zeroV = fromColor zeroV
   addV = binary OpPlusCol

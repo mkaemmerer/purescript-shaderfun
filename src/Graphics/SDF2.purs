@@ -19,9 +19,9 @@ module Graphics.SDF2
 import Prelude hiding (min,max)
 
 import Control.Apply (lift2)
+import Data.Array (length) as Array
 import Data.Array (zip, foldM, (:))
 import Data.Array.NonEmpty (NonEmptyArray, fromArray, head, last, tail, toArray)
-import Data.Array (length) as Array
 import Data.Maybe (fromJust)
 import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
@@ -33,6 +33,9 @@ import Shader.ExprBuilder (ShaderFunc, decl)
 
 type SDF2
   = ShaderFunc Vec2 Number
+
+toPoint :: Expr Vec2 -> { x :: Expr Number, y :: Expr Number }
+toPoint e = { x: projX e, y: projY e }
 
 liftF :: forall f a b. Applicative f => (a -> b) -> a -> f b
 liftF f a = pure $ f a
@@ -69,8 +72,9 @@ segment a b p = do
 box :: Vec2 -> SDF2
 box corner p = do
   d <- decl $ (absV p) ^-^ (fromVec2 corner)
-  c <- decl $ vec2 (max (projX d) zero) (max (projY d) zero)
-  m <- decl $ (min (max (projX d) (projY d)) zero)
+  let d' = toPoint d
+  c <- decl $ vec2 (max d'.x zero) (max d'.y zero)
+  m <- decl $ (min (max d'.x d'.y) zero)
   pure $ (length c) + m
 
 polygon :: Partial => Array Vec2 -> SDF2
@@ -86,7 +90,7 @@ polygon' vs p = do
     pure $ (sqrt d) * s
   where
   v0 = fromVec2 $ head vs
-  pt = { x: projX p, y: projY p }
+  pt = toPoint p
   len = Array.length $ toArray vs
   segments = pairs $ fromVec2 <$> vs
   polygonSegment (Tuple d0 s0) (Tuple a b) = do
@@ -97,8 +101,8 @@ polygon' vs p = do
     -- Sign
     e <- decl $ a ^-^ b
     w <- decl $ p ^-^ b
-    let et = { x: projX e, y: projY e }
-    let wt = { x: projX w, y: projY w }
+    let et = toPoint e
+    let wt = toPoint w
     c1 <- decl $ pt.y `gte` (projY b)
     c2 <- decl $ pt.y `lt` (projY a)
     c3 <- decl $ (et.x * wt.y) `gt` (et.y * wt.x)

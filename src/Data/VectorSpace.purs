@@ -12,6 +12,8 @@ module Data.VectorSpace
   , scaleRight
   , divV
   , lerp
+  , sumV
+  , averageV
   , magnitudeSquared
   , (^+^)
   , (^-^)
@@ -22,6 +24,8 @@ module Data.VectorSpace
   ) where
 
 import Prelude
+
+import Data.Foldable (class Foldable, foldl, sum)
 
 class AdditiveGroup v where
   zeroV :: v
@@ -46,6 +50,17 @@ divV v s = v ^* (recip s)
 
 lerp :: forall v s. VectorSpace s v => DivisionRing s => v -> v -> s -> v
 lerp a b t = a ^+^ t *^ (b ^-^ a)
+
+sumV :: forall v s f. Foldable f => VectorSpace s v => f v -> v
+sumV = foldl addV zeroV
+
+averageV ::
+  forall v s f.
+  Functor f =>
+  Foldable f => DivisionRing s => VectorSpace s v => f v -> v
+averageV cs = sumV cs ^/ count
+  where
+  count = sum $ one <$ cs
 
 infixl 6 addV as ^+^
 infixl 6 subV as ^-^

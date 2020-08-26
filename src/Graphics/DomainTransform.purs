@@ -18,15 +18,18 @@ module Graphics.DomainTransform
   , repeatLogPolar
   ) where
 
-import Prelude hiding (max, mod)
+import Prelude hiding (max,mod)
 
 import Control.Bind (composeKleisli)
 import Data.Vec2 (Vec2(..))
 import Data.VectorSpace ((^-^), (*^), (<.>))
 import Math (tau)
-import Shader.Expr (abs, atan, cos, fromVec2, length, log, max, mod, num, projX, projY, sin, vec2)
+import Shader.Expr (Expr, abs, atan, cos, fromVec2, length, log, max, mod, num, projX, projY, sin, vec2)
 import Shader.Expr (reflect) as S
 import Shader.ExprBuilder (decl, ShaderFunc)
+
+toPoint :: Expr Vec2 -> { x :: Expr Number, y :: Expr Number }
+toPoint e = { x: projX e, y: projY e }
 
 liftF :: forall f a b. Applicative f => (a -> b) -> a -> f b
 liftF f a = pure $ f a
@@ -46,7 +49,7 @@ rotate angle = composeKleisli $ rotate' (num (-angle))
   where
   -- TODO: add matrix type. Rewrite as matrix
   rotate' theta p = do
-    let pt = { x: projX p, y: projY p }
+    let pt = toPoint p
     cc <- decl $ cos theta
     ss <- decl $ sin theta
     p2 <- decl $ vec2 (pt.x * cc - pt.y * ss) (pt.x * ss + pt.y * cc)
@@ -90,7 +93,7 @@ repeatX :: forall a. Number -> ShaderFunc Vec2 a -> ShaderFunc Vec2 a
 repeatX size = composeKleisli $ repeatX' (num size)
   where
   repeatX' cellSize p = do
-    let pt = { x: projX p, y: projY p }
+    let pt = toPoint p
     halfCell <- decl $ cellSize * (num 0.5)
     p2 <- decl $ vec2 (((pt.x + halfCell) `mod` cellSize) - halfCell) pt.y
     pure p2
@@ -99,7 +102,7 @@ repeatY :: forall a. Number -> ShaderFunc Vec2 a -> ShaderFunc Vec2 a
 repeatY size = composeKleisli $ repeatY' (num size)
   where
   repeatY' cellSize p = do
-    let pt = { x: projX p, y: projY p }
+    let pt = toPoint p
     let halfCell = cellSize * num 0.5
     p2 <- decl $ vec2 pt.x (((pt.y + halfCell) `mod` cellSize) - halfCell)
     pure p2
@@ -114,7 +117,7 @@ repeatPolar :: forall a. Number -> ShaderFunc Vec2 a -> ShaderFunc Vec2 a
 repeatPolar count = composeKleisli $ repeatPolar' (num $ tau / count)
   where
   repeatPolar' angle p = do
-    let pt = { x: projX p, y: projY p }
+    let pt = toPoint p
     halfAngle <- decl $ angle * num 0.5
     r <- decl $ length p
     a <- decl $ (atan pt.y pt.x)
@@ -126,7 +129,7 @@ repeatLogPolar :: forall a. Number -> ShaderFunc Vec2 a -> ShaderFunc Vec2 a
 repeatLogPolar count = repeatGrid 1.0 >>> composeKleisli (repeatLogPolar' (num $ count / tau))
   where
   repeatLogPolar' fac p = do
-    let pt = { x: projX p, y: projY p }
+    let pt = toPoint p
     r <- decl $ length p
     p2 <- decl $ vec2 (log r) (atan pt.y pt.x)
     p3 <- decl $ fac *^ p2

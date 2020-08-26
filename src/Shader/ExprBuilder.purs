@@ -1,14 +1,13 @@
-module Shader.ExprBuilder (Builder, ExprBuilder, ShaderFunc, BuilderState, decl, runExprBuilder) where
+module Shader.ExprBuilder (Builder, BuilderState, ExprBuilder, ShaderFunc, decl, runExprBuilder) where
 
 import Prelude
 
-import Control.Monad.State (State, gets, modify, runState)
+import Control.Monad.State (State, get, modify, runState)
 import Data.Tuple (Tuple(..))
 import Shader.Expr (class TypedExpr, Expr(..), bindE)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- TODO: Can this be decomposed with Cont/ContT/State/StateT
--- TODO: Hide builder state with existential type?
 type BuilderState = { count :: Int, cont :: forall a. Expr a -> Expr a }
 type Builder a = State BuilderState a
 
@@ -21,23 +20,13 @@ emptyState = { count: 0, cont: identity }
 eraseType :: forall a b. (a -> a) -> (b -> b)
 eraseType = unsafeCoerce
 
-newVar :: forall t. ExprBuilder t
-newVar = do
-  count <- gets _.count
-  _ <- modify $ _ { count = count+1 }
-  pure $ EVar $ "v_" <> show count
-
-varName :: forall t. Expr t -> String
-varName (EVar name) = name
-varName _ = ""
-
 decl :: forall t. (TypedExpr (Expr t)) => Expr t -> ExprBuilder t
 decl e = do
-  v <- newVar
-  k <- gets _.cont
-  let build b = bindE (varName v) e b
-  _ <- modify $ _ { cont = build >>> (eraseType k) }
-  pure v
+  { count, cont } <- get
+  let name = "v_" <> show count
+  let build b = bindE name e b
+  _ <- modify $ _ { count = count+1, cont = build >>> (eraseType cont) }
+  pure $ EVar name
 
 runExprBuilder :: forall t. ExprBuilder t -> Expr t
 runExprBuilder builder = cont e

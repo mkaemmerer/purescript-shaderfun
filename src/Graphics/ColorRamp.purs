@@ -12,10 +12,10 @@ grayscale :: Number -> Expr Color
 grayscale v = fromColor $ Color v v v
 
 white :: Expr Color
-white = grayscale 1.0
+white = one
 
 black :: Expr Color
-black = grayscale 0.0
+black = zero
 
 signRamp :: ColorRamp
 signRamp d = pure $ ifE (gt d (num 0.0)) white black
