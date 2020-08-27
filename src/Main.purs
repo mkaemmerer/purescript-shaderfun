@@ -5,7 +5,7 @@ import Prelude
 import Data.Foldable (sequence_)
 import Data.Maybe (Maybe)
 import Effect (Effect)
-import Example.Koch (source)
+import Example.Pattern (source)
 import Render (getContext, compileShader, drawShader)
 import Web.DOM.ParentNode (QuerySelector(..), querySelector)
 import Web.HTML (HTMLCanvasElement, window)

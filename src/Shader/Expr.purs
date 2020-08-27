@@ -60,9 +60,20 @@ import Prelude
 
 import Data.Color (Color(..))
 import Data.Complex (Complex(..))
+import Data.HeytingAlgebra (ff, implies, tt)
 import Data.Tuple (Tuple)
 import Data.Vec2 (Vec2(..))
-import Data.VectorSpace (class AdditiveGroup, class VectorSpace, class InnerSpace, zeroV)
+import Data.VectorSpace
+  ( class AdditiveGroup
+  , class InnerSpace
+  , class VectorSpace
+  , negateV
+  , zeroV
+  , (*^)
+  , (^+^)
+  , (^-^)
+  , (<.>)
+  )
 import Unsafe.Coerce (unsafeCoerce)
 
 data Type
@@ -116,11 +127,11 @@ data Expr t
   | EVec2 (Expr Number) (Expr Number)
   | EComplex (Expr Number) (Expr Number)
   | EColor (Expr Number) (Expr Number) (Expr Number)
+  | EUnary UnaryOp (forall a. Expr a)
+  | EBinary BinaryOp (forall a. Expr a) (forall a. Expr a)
   | ETuple (forall a. Expr a) (forall a. Expr a)
   | EFst (Expr (forall a. Tuple t a))
   | ESnd (Expr (forall a. Tuple a t))
-  | EUnary UnaryOp (forall a. Expr a)
-  | EBinary BinaryOp (forall a. Expr a) (forall a. Expr a)
   | EParen (Expr t)
   | ECall String (forall a. Array (Expr a))
   | EIf (Expr Boolean) (Expr t) (Expr t)
@@ -427,3 +438,37 @@ instance additiveGroupExprColor :: AdditiveGroup (Expr Color) where
 
 instance vectorSpaceExprColor :: VectorSpace (Expr Number) (Expr Color) where
   scale = binary OpScaleCol
+
+-- Tuple
+instance semiringExprTuple :: (Semiring (Expr a), Semiring (Expr b)) => Semiring (Expr (Tuple a b)) where
+  zero = tuple zero zero
+  one = tuple one one
+  add e1 e2 = tuple (fst e1 + fst e2) (snd e1 + snd e2)
+  mul e1 e2 = tuple (fst e1 * fst e2) (snd e1 * snd e2)
+
+instance ringExprTuple :: (Ring (Expr a), Ring (Expr b)) => Ring (Expr (Tuple a b)) where
+  sub e1 e2 = tuple (fst e1 - fst e2) (snd e1 - snd e2) 
+
+instance commutativeRingExprTuple :: (CommutativeRing (Expr a), CommutativeRing (Expr b)) => CommutativeRing (Expr (Tuple a b))
+
+instance additiveGroupExprTuple :: (AdditiveGroup (Expr a), AdditiveGroup (Expr b)) => AdditiveGroup (Expr (Tuple a b)) where
+  zeroV = tuple zeroV zeroV
+  addV e1 e2 = tuple (fst e1 ^+^ fst e2) (snd e1 ^+^ snd e2)
+  subV e1 e2 = tuple (fst e1 ^-^ fst e2) (snd e1 ^-^ snd e2)
+  negateV e = tuple (negateV $ fst e) (negateV $ snd e)
+
+instance vectorSpaceExprTuple :: (VectorSpace s (Expr a), VectorSpace s (Expr b)) => VectorSpace s (Expr (Tuple a b)) where
+  scale s e = tuple (s *^ fst e) (s *^ snd e)
+
+instance innerSpaceExprTuple :: (InnerSpace s (Expr a), InnerSpace s (Expr b)) => InnerSpace s (Expr (Tuple a b)) where
+  dot u v = (fst u <.> fst v) ^+^ (snd u <.> snd v)
+
+instance heytingAlgebraExprTuple :: (HeytingAlgebra (Expr a), HeytingAlgebra (Expr b)) => HeytingAlgebra (Expr (Tuple a b)) where
+  ff = tuple ff ff
+  tt = tuple tt tt
+  not e = tuple (not $ fst e) (not $ snd e)
+  disj e1 e2 = tuple (fst e1 || fst e2) (snd e1 || snd e2)
+  conj e1 e2 = tuple (fst e1 && fst e2) (snd e1 && snd e2)
+  implies e1 e2 = tuple (fst e1 `implies` fst e2) (snd e1 `implies` snd e2)
+
+instance booleanAlgebraExprTuple :: (BooleanAlgebra (Expr a), BooleanAlgebra (Expr b)) => BooleanAlgebra (Expr (Tuple a b))

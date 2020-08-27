@@ -40,6 +40,10 @@ printExpr' (EParen e)               = "(" <> printExpr' e <> ")"
 printExpr' (ECall fn args)          = fn <> "(" <> printList (printExpr' <$> args) <> ")"
 printExpr' (EIf i t e)              = printExpr' i <> " ? " <> printExpr' t <> " : " <> printExpr' e
 printExpr' (EBind name ty val body) = printType ty <> " " <> name <> " = " <> printExpr' val <> ";\n" <> printExpr' body
+-- Not handled
+printExpr' (ETuple _ _) = crash
+printExpr' (EFst _) = crash
+printExpr' (ESnd _) = crash
 
 printType :: Type -> String
 printType TBoolean = "bool"

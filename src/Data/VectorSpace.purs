@@ -26,6 +26,7 @@ module Data.VectorSpace
 import Prelude
 
 import Data.Foldable (class Foldable, foldl, sum)
+import Data.Tuple (Tuple(..), fst, snd)
 
 class AdditiveGroup v where
   zeroV :: v
@@ -36,7 +37,7 @@ class AdditiveGroup v where
 class (AdditiveGroup vector) <= VectorSpace scalar vector | vector -> scalar where
   scale :: scalar -> vector -> vector
 
-class (VectorSpace scalar vector) <= InnerSpace scalar vector | vector -> scalar where
+class (VectorSpace scalar vector, AdditiveGroup scalar) <= InnerSpace scalar vector | vector -> scalar where
   dot :: vector -> vector -> scalar
 
 scaleLeft :: forall v s. VectorSpace s v => s -> v -> v
@@ -84,3 +85,16 @@ instance vectorSpaceNumber :: VectorSpace Number Number where
 
 instance innerSpaceNumber :: InnerSpace Number Number where
   dot = mul
+
+-- Tuple instance
+instance additiveGroupTuple :: (AdditiveGroup a, AdditiveGroup b) => AdditiveGroup (Tuple a b) where
+  zeroV = Tuple zeroV zeroV
+  addV e1 e2 = Tuple (fst e1 ^+^ fst e2) (snd e1 ^+^ snd e2)
+  subV e1 e2 = Tuple (fst e1 ^-^ fst e2) (snd e1 ^-^ snd e2)
+  negateV e = Tuple (negateV $ fst e) (negateV $ snd e)
+
+instance vectorSpaceTuple :: (VectorSpace s a, VectorSpace s b) => VectorSpace s (Tuple a b) where
+  scale s e = Tuple (s *^ fst e) (s *^ snd e)
+
+instance innerSpaceTuple :: (InnerSpace s a, InnerSpace s b) => InnerSpace s (Tuple a b) where
+  dot u v = (fst u <.> fst v) ^+^ (snd u <.> snd v)
