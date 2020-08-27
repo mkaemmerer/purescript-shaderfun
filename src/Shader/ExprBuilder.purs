@@ -1,10 +1,12 @@
 module Shader.ExprBuilder (Builder, BuilderState, ExprBuilder, ShaderFunc, class Declarable, decl, runExprBuilder) where
 
-import Prelude
+import Prelude hiding (unit)
 
 import Control.Monad.State (State, get, modify, runState)
+import Data.Either (Either)
+import Data.HeytingAlgebra (ff, tt)
 import Data.Tuple (Tuple(..))
-import Shader.Expr (class TypedExpr, Expr(..), bindE, fst, snd, tuple)
+import Shader.Expr (class TypedExpr, Expr(..), bindE, fst, ifE, inl, inr, matchE, snd, tuple, unit)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- TODO: Can this be decomposed with Cont/ContT/State/StateT
@@ -27,8 +29,14 @@ class Declarable t where
 instance declarableTyped :: (TypedExpr t) => Declarable t where
   decl = declSingle
 
+else instance declarableUnit :: Declarable Unit where
+  decl = declUnit
+
 else instance declarableTuple :: (Declarable a, Declarable b) => Declarable (Tuple a b) where
   decl = declTuple
+
+else instance declarableEither :: (Declarable a, Declarable b) => Declarable (Either a b) where
+  decl = declEither
 
 declSingle :: forall t. (TypedExpr t) => Expr t -> ExprBuilder t
 declSingle e = do
@@ -38,6 +46,9 @@ declSingle e = do
   _ <- modify $ _ { count = count+1, cont = build >>> (eraseType cont) }
   pure $ EVar name
 
+declUnit :: Expr Unit -> ExprBuilder Unit
+declUnit e = pure unit
+
 declTuple :: forall a b. Declarable a => Declarable b => Expr (Tuple a b) -> ExprBuilder (Tuple a b)
 declTuple e = do
   let e1 = fst e
@@ -46,6 +57,16 @@ declTuple e = do
   v2 <- decl e2
   pure $ tuple v1 v2
 
+declEither :: forall a b. Declarable a => Declarable b => Expr (Either a b) -> ExprBuilder (Either a b)
+declEither e = do
+  tag <- decl $ matchE e (const tt) (const ff)
+  vl <- decl $ matchE e identity (const default)
+  vr <- decl $ matchE e (const default) identity
+  let e' = ifE tag (inl vl) (inr vr)
+  pure $ e'
+
+default :: forall a. Expr a
+default = unsafeCoerce unit
 
 runExprBuilder :: forall t. ExprBuilder t -> Expr t
 runExprBuilder builder = cont e

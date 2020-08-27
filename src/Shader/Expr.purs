@@ -11,9 +11,13 @@ module Shader.Expr
   , bool
   , color
   , complex
+  , unit
   , tuple
   , fst
   , snd
+  , inl
+  , inr
+  , matchE
   , cos
   , dotC
   , dotV
@@ -60,20 +64,11 @@ import Prelude
 
 import Data.Color (Color(..))
 import Data.Complex (Complex(..))
+import Data.Either (Either)
 import Data.HeytingAlgebra (ff, implies, tt)
 import Data.Tuple (Tuple)
 import Data.Vec2 (Vec2(..))
-import Data.VectorSpace
-  ( class AdditiveGroup
-  , class InnerSpace
-  , class VectorSpace
-  , negateV
-  , zeroV
-  , (*^)
-  , (^+^)
-  , (^-^)
-  , (<.>)
-  )
+import Data.VectorSpace (class AdditiveGroup, class InnerSpace, class VectorSpace, negateV, zeroV, (*^), (^+^), (^-^), (<.>))
 import Unsafe.Coerce (unsafeCoerce)
 
 data Type
@@ -82,6 +77,14 @@ data Type
   | TVec2
   | TComplex
   | TColor
+
+type Tag = Expr Boolean
+
+tagLeft :: Tag
+tagLeft = tt
+
+tagRight :: Tag
+tagRight = ff
 
 data UnaryOp
   = OpNegate
@@ -129,6 +132,7 @@ data Expr t
   | EColor (Expr Number) (Expr Number) (Expr Number)
   | EUnary UnaryOp (forall a. Expr a)
   | EBinary BinaryOp (forall a. Expr a) (forall a. Expr a)
+  | EUnit
   | ETuple (forall a. Expr a) (forall a. Expr a)
   | EFst (Expr (forall a. Tuple t a))
   | ESnd (Expr (forall a. Tuple a t))
@@ -185,6 +189,10 @@ complex r i = EComplex r i
 color :: Expr Number -> Expr Number -> Expr Number -> Expr Color
 color r g b = EColor r g b
 
+-- Product types
+unit :: Expr Unit
+unit = EUnit
+
 tuple :: forall a b. Expr a -> Expr b -> Expr (Tuple a b)
 tuple a b = ETuple (eraseType a) (eraseType b)
 
@@ -193,6 +201,20 @@ fst t = EFst (eraseType t)
 
 snd :: forall a b. Expr (Tuple a b) -> Expr b
 snd t = ESnd (eraseType t)
+
+-- Encode sum types using product types
+inl :: forall a b. Expr a -> Expr (Either a b)
+inl a = ETuple (eraseType tagLeft) (eraseType a)
+
+inr :: forall a b. Expr b -> Expr (Either a b)
+inr b = ETuple (eraseType tagRight) (eraseType b)
+
+matchE :: forall a b c. Expr (Either a b) -> (Expr a -> Expr c) -> (Expr b -> Expr c) -> Expr c
+matchE e lBranch rBranch = ifE tag lVal rVal
+  where
+    tag = EFst (eraseType e)
+    lVal = lBranch $ ESnd (eraseType e)
+    rVal = rBranch $ ESnd (eraseType e)
 
 paren :: forall a. Expr a -> Expr a
 paren e = EParen e

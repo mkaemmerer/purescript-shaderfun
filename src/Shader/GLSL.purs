@@ -22,6 +22,8 @@ printExpr :: Partial => forall a. Expr a -> String
 printExpr = printExprWithReturn
 
 printExprWithReturn :: Partial => forall a. Expr a -> String
+printExprWithReturn (EBind name ty EUnit body) =
+  printType ty <> " " <> name <> ";\n" <> printExprWithReturn body
 printExprWithReturn (EBind name ty val body) =
   printType ty <> " " <> name <> " = " <> printExpr' val <> ";\n" <> printExprWithReturn body
 printExprWithReturn e =
@@ -39,11 +41,14 @@ printExpr' (EBinary op l r)         = printBinary op l r
 printExpr' (EParen e)               = "(" <> printExpr' e <> ")"
 printExpr' (ECall fn args)          = fn <> "(" <> printList (printExpr' <$> args) <> ")"
 printExpr' (EIf i t e)              = printExpr' i <> " ? " <> printExpr' t <> " : " <> printExpr' e
-printExpr' (EBind name ty val body) = printType ty <> " " <> name <> " = " <> printExpr' val <> ";\n" <> printExpr' body
+-- When unit is used as a sentinel value, don't initialize to anything
+printExpr' (EBind name ty EUnit body) = printType ty <> " " <> name <> ";\n" <> printExpr' body
+printExpr' (EBind name ty val body)   = printType ty <> " " <> name <> " = " <> printExpr' val <> ";\n" <> printExpr' body
 -- Not handled
 printExpr' (ETuple _ _) = crash
 printExpr' (EFst _) = crash
 printExpr' (ESnd _) = crash
+printExpr' (EUnit) = crash
 
 printType :: Type -> String
 printType TBoolean = "bool"
@@ -132,6 +137,7 @@ elaborate (EBind name ty val body) = EBind name ty (elaborate val) (elaborate bo
 elaborate (EFst _) = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
 elaborate (ESnd _) = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
 elaborate (ETuple _ _) = crash -- ETuple is not a valid top-level term
+elaborate (EUnit) = crash -- Unit is not a valid top-level term
 
 topPrec :: Int
 topPrec = 100
@@ -214,6 +220,7 @@ fixPrecedence' prec (EBind name ty val body) = EBind name ty (fixPrecedence' top
 fixPrecedence' prec (ETuple _ _) = crash
 fixPrecedence' prec (EFst _) = crash
 fixPrecedence' prec (ESnd _) = crash
+fixPrecedence' prec (EUnit) = crash
 
 id :: forall a. a -> a
 id x = x
@@ -266,3 +273,4 @@ liftDecl' (EBind name ty val body) = do
 liftDecl' (ETuple _ _) = crash
 liftDecl' (EFst _) = crash
 liftDecl' (ESnd _) = crash
+liftDecl' (EUnit) = crash
