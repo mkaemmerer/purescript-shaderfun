@@ -6,26 +6,28 @@ import Control.Monad.Cont (Cont, runCont, callCC)
 import Data.Foldable (intercalate)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
-import Shader.Expr (BinaryOp(..), Expr(..), Type(..), UnaryOp(..), complex, projImaginary, projReal)
+import Partial (crash)
+import Partial.Unsafe (unsafePartial)
+import Shader.Expr (class TypedExpr, BinaryOp(..), Expr(..), Type(..), UnaryOp(..), complex, projImaginary, projReal)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- Code generation
-toGLSL :: forall a. Expr a -> String
-toGLSL = normalize >>> printExpr
+toGLSL :: forall a. TypedExpr a => Expr a -> String
+toGLSL = unsafePartial $ normalize >>> printExpr
 
 printList :: Array String -> String
 printList = intercalate ", "
 
-printExpr :: forall a. Expr a -> String
+printExpr :: Partial => forall a. Expr a -> String
 printExpr = printExprWithReturn
 
-printExprWithReturn :: forall a. Expr a -> String
+printExprWithReturn :: Partial => forall a. Expr a -> String
 printExprWithReturn (EBind name ty val body) =
   printType ty <> " " <> name <> " = " <> printExpr' val <> ";\n" <> printExprWithReturn body
 printExprWithReturn e =
   "return " <> printExpr' e <> ";"
 
-printExpr' :: forall a. Expr a -> String
+printExpr' :: Partial => forall a. Expr a -> String
 printExpr' (EVar name)              = name
 printExpr' (ENum n)                 = show n
 printExpr' (EBool b)                = show b
@@ -46,7 +48,7 @@ printType TVec2    = "vec2"
 printType TComplex = "vec2"
 printType TColor   = "vec3"
 
-printUnary :: forall a. UnaryOp -> Expr a -> String
+printUnary :: Partial => forall a. UnaryOp -> Expr a -> String
 printUnary OpNegate e = "-" <> printExpr' e
 printUnary OpNot    e = "!" <> printExpr' e
 printUnary OpProjX  e = printExpr' e <> ".x"
@@ -57,7 +59,7 @@ printUnary OpProjB  e = printExpr' e <> ".b"
 printUnary OpProjReal       e = printExpr' e <> ".x"
 printUnary OpProjImaginary  e = printExpr' e <> ".y"
 
-printBinary :: forall a. BinaryOp -> Expr a -> Expr a -> String
+printBinary :: Partial => forall a. BinaryOp -> Expr a -> Expr a -> String
 printBinary op l r = intercalate " " [ printExpr' l, printBinaryOp op, printExpr' r ]
   where
     printBinaryOp OpEq        = "=="
@@ -82,14 +84,14 @@ printBinary op l r = intercalate " " [ printExpr' l, printBinaryOp op, printExpr
     printBinaryOp OpMinusCol  = "-"
     printBinaryOp OpTimesCol  = "*"
     printBinaryOp OpScaleCol  = "*"
-    printBinaryOp OpDivC      = "" -- GLSL has no builtin operation. Handle by "elaborating"
-    printBinaryOp OpTimesC    = "" -- GLSL has no builtin operation. Handle by "elaborating"
+    printBinaryOp OpDivC   = crash -- GLSL has no builtin operation. Handled by "elaborating"
+    printBinaryOp OpTimesC = crash -- GLSL has no builtin operation. Handled by "elaborating"
 
 -- Normalization 
-normalize :: forall a. Expr a -> Expr a
-normalize = elaborate >>> liftDecl >>> fixPrecedence
+normalize :: forall a. TypedExpr a => Expr a -> Expr a
+normalize = unsafePartial $ elaborate >>> liftDecl >>> fixPrecedence
 
-elaborate :: forall a. Expr a -> Expr a
+elaborate :: Partial => forall a. Expr a -> Expr a
 elaborate (EBinary OpTimesC c1 c2) = eraseType $ complex (r1*r2 - i1*i2) (r1*i2 + r2*i1)
   where
   c1' = elaborate c1
@@ -105,6 +107,8 @@ elaborate (EBinary OpDivC c1 c2) = eraseType $ complex nr ni
   nr = (r1*r2 + i1*i2) / d
   ni = (r2*i1 - r1*i2) / d
   d  = r2*r2 + i2*i2
+elaborate (EFst (ETuple e1 e2)) = elaborate e1
+elaborate (ESnd (ETuple e1 e2)) = elaborate e2
 -- Other cases
 elaborate (EVar name)              = EVar name
 elaborate (ENum n)                 = ENum n
@@ -118,6 +122,10 @@ elaborate (EParen e)               = EParen (elaborate e)
 elaborate (ECall fn args)          = ECall fn (elaborate <$> args)
 elaborate (EIf i t e)              = EIf (elaborate i) (elaborate t) (elaborate e)
 elaborate (EBind name ty val body) = EBind name ty (elaborate val) (elaborate body)
+-- Not handled
+elaborate (EFst _) = crash -- ETuple is the only inhabitant of type (Expr (Tuple a b))
+elaborate (ESnd _) = crash -- ETuple is the only inhabitant of type (Expr (Tuple a b))
+elaborate (ETuple _ _) = crash -- ETuple is not a valid top-level term
 
 topPrec :: Int
 topPrec = 100
@@ -159,10 +167,10 @@ binaryPrecedence OpNeq       = 8
 binaryPrecedence OpAnd       = 9
 binaryPrecedence OpOr        = 10
 
-fixPrecedence :: forall a. Expr a -> Expr a
+fixPrecedence :: Partial => forall a. Expr a -> Expr a
 fixPrecedence e = fixPrecedence' topPrec e
 
-fixPrecedence' :: forall a. Int -> Expr a -> Expr a
+fixPrecedence' :: Partial => forall a. Int -> Expr a -> Expr a
 fixPrecedence' prec (EVar name) = EVar name
 fixPrecedence' prec (EBool b) = EBool b
 fixPrecedence' prec (ENum n) = ENum n
@@ -196,7 +204,10 @@ fixPrecedence' prec (EIf i t e) = if ifPrec < prec then inner else EParen (inner
 fixPrecedence' prec (EBind name ty val body) = EBind name ty (fixPrecedence' topPrec val) body'
   where
     body' = fixPrecedence' topPrec body
-
+-- Not handled
+fixPrecedence' prec (ETuple _ _) = crash
+fixPrecedence' prec (EFst _) = crash
+fixPrecedence' prec (ESnd _) = crash
 
 id :: forall a. a -> a
 id x = x
@@ -204,10 +215,10 @@ id x = x
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
 
-liftDecl :: forall a. Expr a -> Expr a
+liftDecl :: Partial => forall a. Expr a -> Expr a
 liftDecl e = runCont (liftDecl' e) id
 
-liftDecl' :: forall a b. Expr a -> Cont (Expr b) (Expr a)
+liftDecl' :: Partial => forall a b. Expr a -> Cont (Expr b) (Expr a)
 liftDecl' (EVar name) = callCC $ (#) $ EVar name
 liftDecl' (EBool b) = callCC $ (#) $ EBool b
 liftDecl' (ENum n) = callCC $ (#) $ ENum n
@@ -245,3 +256,7 @@ liftDecl' (EIf i t e) = do
 liftDecl' (EBind name ty val body) = do
   body' <- liftDecl' body
   pure $ EBind name ty val body'
+-- Not handled
+liftDecl' (ETuple _ _) = crash
+liftDecl' (EFst _) = crash
+liftDecl' (ESnd _) = crash

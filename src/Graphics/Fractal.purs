@@ -8,11 +8,14 @@ import Data.Int (toNumber)
 import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
 import Data.VectorSpace (magnitudeSquared)
-import Shader.Expr (Expr, fromComplex, gt, ifE, log2, num, vec2ToComplex)
-import Shader.ExprBuilder (ShaderFunc, Builder, decl)
+import Shader.Expr (Expr, fromComplex, fst, gt, ifE, log2, num, snd, tuple, vec2ToComplex)
+import Shader.ExprBuilder (ShaderFunc, decl)
 
-type Point = Expr Complex
-type IterCount = Expr Number
+type Point = Complex
+type IterCount = Number
+
+toTuple :: forall a b. Expr (Tuple a b) -> Tuple (Expr a) (Expr b)
+toTuple e = Tuple (fst e) (snd e)
 
 repeatM :: forall m a. MonadRec m => Int -> (a -> m a) -> a -> m a
 repeatM n action seed = tailRecM2 go n seed
@@ -27,20 +30,21 @@ repeatC n f = tailRec go { acc: identity, count: n }
   go { acc, count: 0 } = Done acc
   go { acc, count }    = Loop { acc: f >>> acc, count: count - 1}
 
-orbitStep :: Point -> Tuple Point IterCount -> Builder (Tuple Point IterCount)
-orbitStep c (Tuple z t) = do
+orbitStep :: Expr Point -> ShaderFunc (Tuple Point IterCount) (Tuple Point IterCount)
+orbitStep c zt = do
+  let (Tuple z t) = toTuple zt
   q <- decl $ (z * z) + c
   esc <- decl $ magnitudeSquared q `gt` num 4.0
   z' <- decl $ ifE esc z q
   t' <- decl $ ifE esc t (t + one)
-  pure (Tuple z' t')
+  pure (tuple z' t')
 
 juliaSet :: Int -> Complex -> ShaderFunc Vec2 Number
 juliaSet n c z = do
   let c' = fromComplex c
   let n' = num $ toNumber n
   -- (point, iteration count)
-  (Tuple z' t') <- repeatM n (orbitStep c') (Tuple (vec2ToComplex z) zero)
+  (Tuple z' t') <- toTuple <$> repeatM n (orbitStep c') (tuple (vec2ToComplex z) zero)
   -- Smooth iteration count
   d <- decl $ t' - (log2 $ log2 $ magnitudeSquared $ z')
   f <- decl $ d / n'
@@ -51,7 +55,7 @@ mandelbrotSet n c = do
   let c' = vec2ToComplex c
   let n' = num $ toNumber n
   -- (point, iteration count)
-  (Tuple z' t') <- repeatM n (orbitStep c') (Tuple zero zero)
+  (Tuple z' t') <- toTuple <$> repeatM n (orbitStep c') (tuple zero zero)
   -- Smooth iteration count
   d <- decl $ t' - (log2 $ log2 $ magnitudeSquared $ z')
   f <- decl $ d / n'

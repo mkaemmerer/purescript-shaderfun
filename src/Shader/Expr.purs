@@ -11,6 +11,9 @@ module Shader.Expr
   , bool
   , color
   , complex
+  , tuple
+  , fst
+  , snd
   , cos
   , dotC
   , dotV
@@ -57,6 +60,7 @@ import Prelude
 
 import Data.Color (Color(..))
 import Data.Complex (Complex(..))
+import Data.Tuple (Tuple)
 import Data.Vec2 (Vec2(..))
 import Data.VectorSpace (class AdditiveGroup, class VectorSpace, class InnerSpace, zeroV)
 import Unsafe.Coerce (unsafeCoerce)
@@ -112,6 +116,9 @@ data Expr t
   | EVec2 (Expr Number) (Expr Number)
   | EComplex (Expr Number) (Expr Number)
   | EColor (Expr Number) (Expr Number) (Expr Number)
+  | ETuple (forall a. Expr a) (forall a. Expr a)
+  | EFst (Expr (forall a. Tuple t a))
+  | ESnd (Expr (forall a. Tuple a t))
   | EUnary UnaryOp (forall a. Expr a)
   | EBinary BinaryOp (forall a. Expr a) (forall a. Expr a)
   | EParen (Expr t)
@@ -121,21 +128,21 @@ data Expr t
 
 
 class TypedExpr a where
-  typeof :: a -> Type
+  typeof :: (Expr a) -> Type
 
-instance typedExprExprBoolean :: TypedExpr (Expr Boolean) where
+instance typedExprExprBoolean :: TypedExpr Boolean where
   typeof e = TBoolean
 
-instance typedExprExprNumber :: TypedExpr (Expr Number) where
+instance typedExprExprNumber :: TypedExpr Number where
   typeof e = TScalar
 
-instance typedExprExprVec2 :: TypedExpr (Expr Vec2) where
+instance typedExprExprVec2 :: TypedExpr Vec2 where
   typeof e = TVec2
 
-instance typedExprExprComplex :: TypedExpr (Expr Complex) where
+instance typedExprExprComplex :: TypedExpr Complex where
   typeof e = TComplex
 
-instance typedExprExprColor :: TypedExpr (Expr Color) where
+instance typedExprExprColor :: TypedExpr Color where
   typeof e = TColor
 
 -- Unsafe, private constructors
@@ -167,13 +174,22 @@ complex r i = EComplex r i
 color :: Expr Number -> Expr Number -> Expr Number -> Expr Color
 color r g b = EColor r g b
 
+tuple :: forall a b. Expr a -> Expr b -> Expr (Tuple a b)
+tuple a b = ETuple (eraseType a) (eraseType b)
+
+fst :: forall a b. Expr (Tuple a b) -> Expr a
+fst t = EFst (eraseType t)
+
+snd :: forall a b. Expr (Tuple a b) -> Expr b
+snd t = ESnd (eraseType t)
+
 paren :: forall a. Expr a -> Expr a
 paren e = EParen e
 
 ifE :: forall a. Expr Boolean -> Expr a -> Expr a -> Expr a
 ifE i t e = EIf i t e
 
-bindE :: forall s t. (TypedExpr (Expr s)) => String -> Expr s -> Expr t -> Expr t
+bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
 bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
 
 fromVec2 :: Vec2 -> Expr Vec2
