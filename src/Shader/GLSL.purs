@@ -109,6 +109,8 @@ elaborate (EBinary OpDivC c1 c2) = eraseType $ complex nr ni
   d  = r2*r2 + i2*i2
 elaborate (EFst (ETuple e1 e2)) = elaborate e1
 elaborate (ESnd (ETuple e1 e2)) = elaborate e2
+elaborate (EFst (EIf c t e)) = EIf (elaborate c) (elaborate $ EFst t) (elaborate $ EFst e)
+elaborate (ESnd (EIf c t e)) = EIf (elaborate c) (elaborate $ ESnd t) (elaborate $ ESnd e)
 -- Other cases
 elaborate (EVar name)              = EVar name
 elaborate (ENum n)                 = ENum n
@@ -123,8 +125,8 @@ elaborate (ECall fn args)          = ECall fn (elaborate <$> args)
 elaborate (EIf i t e)              = EIf (elaborate i) (elaborate t) (elaborate e)
 elaborate (EBind name ty val body) = EBind name ty (elaborate val) (elaborate body)
 -- Not handled
-elaborate (EFst _) = crash -- ETuple is the only inhabitant of type (Expr (Tuple a b))
-elaborate (ESnd _) = crash -- ETuple is the only inhabitant of type (Expr (Tuple a b))
+elaborate (EFst _) = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
+elaborate (ESnd _) = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
 elaborate (ETuple _ _) = crash -- ETuple is not a valid top-level term
 
 topPrec :: Int
