@@ -27,9 +27,9 @@ sampleGrid :: Int -> Array Vec2
 sampleGrid aa = vs <#> (_ ^-^ center)
   where
   count = toNumber aa
-  center = Vec2 0.5 0.5
+  center = Vec2 {x: 0.5, y: 0.5}
   offsets = (0 .. aa) <#> toNumber <#> (_ / count)
-  vs = Vec2 <$> offsets <*> offsets
+  vs = (\x y -> Vec2 {x,y}) <$> offsets <*> offsets
 
 program :: ShaderProgram Vec2 Color
 program = shaderProgram $ oversample 4 $ rotate (tau / 8.0) $ scale 100.0 $ checkerboard

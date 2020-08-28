@@ -8,15 +8,12 @@ import Data.Int (toNumber)
 import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
 import Data.VectorSpace (magnitudeSquared)
-import Shader.Expr (Expr, fst, gt, ifE, log2, num, snd, tuple, vec2ToComplex)
-import Shader.Expr.Cast (cast)
+import Shader.Expr (Expr, gt, ifE, log2, num, tuple, vec2ToComplex)
+import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (type (|>), decl)
 
 type Point = Complex
 type IterCount = Number
-
-toTuple :: forall a b. Expr (Tuple a b) -> Tuple (Expr a) (Expr b)
-toTuple e = Tuple (fst e) (snd e)
 
 repeatM :: forall m a. MonadRec m => Int -> (a -> m a) -> a -> m a
 repeatM n action seed = tailRecM2 go n seed
@@ -33,7 +30,7 @@ repeatC n f = tailRec go { acc: identity, count: n }
 
 orbitStep :: Expr Point -> (Tuple Point IterCount) |> (Tuple Point IterCount)
 orbitStep c zt = do
-  let (Tuple z t) = toTuple zt
+  let (Tuple z t) = from zt
   q <- decl $ (z * z) + c
   esc <- decl $ magnitudeSquared q `gt` num 4.0
   z' <- decl $ ifE esc z q
@@ -45,7 +42,7 @@ juliaSet n c z = do
   let c' = cast c
   let n' = num $ toNumber n
   -- (point, iteration count)
-  (Tuple z' t') <- toTuple <$> repeatM n (orbitStep c') (tuple (vec2ToComplex z) zero)
+  (Tuple z' t') <- from <$> repeatM n (orbitStep c') (tuple (vec2ToComplex z) zero)
   -- Smooth iteration count
   d <- decl $ t' - (log2 $ log2 $ magnitudeSquared $ z')
   f <- decl $ d / n'
@@ -56,7 +53,7 @@ mandelbrotSet n c = do
   let c' = vec2ToComplex c
   let n' = num $ toNumber n
   -- (point, iteration count)
-  (Tuple z' t') <- toTuple <$> repeatM n (orbitStep c') (tuple zero zero)
+  (Tuple z' t') <- from <$> repeatM n (orbitStep c') (tuple zero zero)
   -- Smooth iteration count
   d <- decl $ t' - (log2 $ log2 $ magnitudeSquared $ z')
   f <- decl $ d / n'

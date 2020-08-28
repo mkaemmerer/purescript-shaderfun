@@ -14,7 +14,7 @@ import Shader.GLSL (toGLSL)
 program :: ShaderProgram Vec2 Color
 program = shaderProgram $ geometry >=> signRamp
   where
-    baseGeometry = invert $ outline 10.0 $ blend (0.5) (circle 100.0) (box (Vec2 120.0 120.0))
+    baseGeometry = invert $ outline 10.0 $ blend (0.5) (circle 100.0) (box (Vec2 {x: 120.0, y: 120.0}))
     geometry = mirror (tau / 4.0) $ repeatPolar 5.0 $ translateX 400.0 $ rotate (0.1) baseGeometry
 
 source :: String

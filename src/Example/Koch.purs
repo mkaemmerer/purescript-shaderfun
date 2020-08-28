@@ -15,14 +15,14 @@ import Shader.GLSL (toGLSL)
 kochFold :: Int -> SDF2 -> SDF2
 kochFold n = (repeatC n (kFold >>> setup)) >>> inverseSetup
   where
-  kFold = mirror (tau / 6.0) >>> translate (Vec2 0.5 0.0) >>> mirrorX
-  setup = translate (Vec2 1.5 0.0) >>> scaleSDF (1.0 / 3.0)
-  inverseSetup = scaleSDF 3.0 >>> translate (Vec2 (-1.5) 0.0)
+  kFold = mirror (tau / 6.0) >>> translate (Vec2 {x: 0.5, y: 0.0}) >>> mirrorX
+  setup = translate (Vec2 {x: 1.5, y: 0.0}) >>> scaleSDF (1.0 / 3.0)
+  inverseSetup = scaleSDF 3.0 >>> translate (Vec2 {x: -1.5, y: 0.0})
 
 program :: ShaderProgram Vec2 Color
 program = shaderProgram $ fractal >=> signRamp
   where
-    baseFractal = kochFold 8 $ segment (Vec2 0.0 0.0) (Vec2 1.0 0.0)
+    baseFractal = kochFold 8 $ segment (Vec2 {x: 0.0, y: 0.0}) (Vec2 {x: 1.0, y: 0.0})
     fractal = dilate 2.0 $ scaleSDF 600.0 $ baseFractal
 
 source :: String

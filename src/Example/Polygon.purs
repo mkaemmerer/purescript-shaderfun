@@ -19,10 +19,10 @@ program = shaderProgram $ geometry >=> signRamp
     a = tau / (count * 2.0)
     ss = 100.0 * tan a
     points = [
-      Vec2     0.0   0.0,
-      Vec2   100.0    ss,
-      Vec2   200.0   0.0,
-      Vec2   100.0  (-ss)
+      Vec2 { x:   0.0, y:  0.0},
+      Vec2 { x: 100.0, y:   ss},
+      Vec2 { x: 200.0, y:  0.0},
+      Vec2 { x: 100.0, y:  -ss}
     ]
     baseGeometry = unsafePartial $ polygon points
     geometry = dilate 10.0 $ repeatGrid 800.0 $ repeatPolar count $ baseGeometry

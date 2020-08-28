@@ -28,14 +28,11 @@ import Data.Vec2 (Vec2)
 import Data.VectorSpace ((*^), (^+^), (^-^), (<.>), lerp)
 import Graphics.DomainTransform (repeatLogPolar, scale)
 import Math (tau)
-import Shader.Expr (Expr, abs, absV, gt, gte, ifE, length, lt, max, min, num, projX, projY, saturate, sqrt, vec2)
-import Shader.Expr.Cast (cast)
+import Shader.Expr (Expr, abs, absV, gt, gte, ifE, length, lt, max, min, num, projY, saturate, sqrt, vec2)
+import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (type (|>), decl)
 
 type SDF2 = Vec2 |> Number
-
-toPoint :: Expr Vec2 -> { x :: Expr Number, y :: Expr Number }
-toPoint e = { x: projX e, y: projY e }
 
 liftF :: forall f a b. Applicative f => (a -> b) -> a -> f b
 liftF f a = pure $ f a
@@ -73,7 +70,7 @@ segment a b p = do
 box :: Vec2 -> SDF2
 box corner p = do
   d <- decl $ (absV p) ^-^ (cast corner)
-  let d' = toPoint d
+  let d' = from d
   c <- decl $ vec2 (max d'.x zero) (max d'.y zero)
   m <- decl $ (min (max d'.x d'.y) zero)
   pure $ (length c) + m
@@ -91,7 +88,7 @@ polygon' vs p = do
     pure $ (sqrt d) * s
   where
   v0 = cast $ head vs
-  pt = toPoint p
+  pt = from p
   len = Array.length $ toArray vs
   segments = pairs $ cast <$> vs
   polygonSegment (Tuple d0 s0) (Tuple a b) = do
@@ -102,8 +99,8 @@ polygon' vs p = do
     -- Sign
     e <- decl $ a ^-^ b
     w <- decl $ p ^-^ b
-    let et = toPoint e
-    let wt = toPoint w
+    let et = from e
+    let wt = from w
     c1 <- decl $ pt.y `gte` (projY b)
     c2 <- decl $ pt.y `lt` (projY a)
     c3 <- decl $ (et.x * wt.y) `gt` (et.y * wt.x)

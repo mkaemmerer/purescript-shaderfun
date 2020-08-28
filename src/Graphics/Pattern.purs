@@ -4,14 +4,11 @@ import Prelude hiding (min,max,mod)
 
 import Data.Color (Color)
 import Data.Vec2 (Vec2)
-import Shader.Expr (Expr, color, floor, num, mod, projX, projY)
-import Shader.Expr.Cast (cast)
+import Shader.Expr (Expr, color, floor, mod, num)
+import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (decl, type (|>))
 
 type Pattern = Vec2 |> Color
-
-toPoint :: Expr Vec2 -> { x :: Expr Number, y :: Expr Number }
-toPoint e = { x: projX e, y: projY e }
 
 grayscale :: Expr Number -> Expr Color
 grayscale v = color v v v
@@ -21,13 +18,13 @@ xor x y = x * (one - y) + y * (one - x)
 
 stripesHorizontal :: Pattern
 stripesHorizontal p = do
-  let pt = toPoint p
+  let pt = from p
   x <- decl $ (floor pt.x) `mod` (num 2.0)
   pure $ grayscale x
 
 stripesVertical :: Pattern
 stripesVertical p = do
-  let pt = toPoint p
+  let pt = from p
   y <- decl $ (floor pt.y) `mod` (num 2.0)
   pure $ grayscale y
 
