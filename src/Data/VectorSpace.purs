@@ -28,6 +28,7 @@ import Prelude
 import Data.Foldable (class Foldable, foldl, sum)
 import Data.Tuple (Tuple(..), fst, snd)
 
+-- Isomorphic to Group v, but we want to specify the (+, 0, negate) group, not the (*, 1, recip) group.
 class AdditiveGroup v where
   zeroV :: v
   addV :: v -> v -> v

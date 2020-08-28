@@ -8,7 +8,8 @@ import Data.Int (toNumber)
 import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
 import Data.VectorSpace (magnitudeSquared)
-import Shader.Expr (Expr, fromComplex, fst, gt, ifE, log2, num, snd, tuple, vec2ToComplex)
+import Shader.Cast (cast)
+import Shader.Expr (Expr, fst, gt, ifE, log2, num, snd, tuple, vec2ToComplex)
 import Shader.ExprBuilder (ShaderFunc, decl)
 
 type Point = Complex
@@ -41,7 +42,7 @@ orbitStep c zt = do
 
 juliaSet :: Int -> Complex -> ShaderFunc Vec2 Number
 juliaSet n c z = do
-  let c' = fromComplex c
+  let c' = cast c
   let n' = num $ toNumber n
   -- (point, iteration count)
   (Tuple z' t') <- toTuple <$> repeatM n (orbitStep c') (tuple (vec2ToComplex z) zero)

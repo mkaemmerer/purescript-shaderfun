@@ -28,7 +28,8 @@ import Data.Vec2 (Vec2)
 import Data.VectorSpace ((*^), (^+^), (^-^), (<.>), lerp)
 import Graphics.DomainTransform (repeatLogPolar, scale)
 import Math (tau)
-import Shader.Expr (Expr, abs, absV, fromVec2, gt, gte, ifE, length, lt, max, min, num, projX, projY, saturate, sqrt, vec2)
+import Shader.Expr (Expr, abs, absV, gt, gte, ifE, length, lt, max, min, num, projX, projY, saturate, sqrt, vec2)
+import Shader.Expr.Cast (cast)
 import Shader.ExprBuilder (ShaderFunc, decl)
 
 type SDF2
@@ -65,13 +66,13 @@ projectSegment a b p = do
 
 segment :: Vec2 -> Vec2 -> SDF2
 segment a b p = do
-  c <- projectSegment (fromVec2 a) (fromVec2 b) p
+  c <- projectSegment (cast a) (cast b) p
   d <- decl $ length (p ^-^ c)
   pure d
 
 box :: Vec2 -> SDF2
 box corner p = do
-  d <- decl $ (absV p) ^-^ (fromVec2 corner)
+  d <- decl $ (absV p) ^-^ (cast corner)
   let d' = toPoint d
   c <- decl $ vec2 (max d'.x zero) (max d'.y zero)
   m <- decl $ (min (max d'.x d'.y) zero)
@@ -89,10 +90,10 @@ polygon' vs p = do
     Tuple d s <- foldM polygonSegment (Tuple d0 s0) segments
     pure $ (sqrt d) * s
   where
-  v0 = fromVec2 $ head vs
+  v0 = cast $ head vs
   pt = toPoint p
   len = Array.length $ toArray vs
-  segments = pairs $ fromVec2 <$> vs
+  segments = pairs $ cast <$> vs
   polygonSegment (Tuple d0 s0) (Tuple a b) = do
     -- Distance
     x <- projectSegment a b p

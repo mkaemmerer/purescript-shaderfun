@@ -11,7 +11,7 @@ import Data.VectorSpace (averageV, (^+^), (^-^))
 import Graphics.DomainTransform (rotate, scale)
 import Graphics.Pattern (checkerboard)
 import Math (tau)
-import Shader.Expr (fromVec2)
+import Shader.Expr.Cast (cast)
 import Shader.ExprBuilder (ShaderFunc)
 import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
@@ -21,7 +21,7 @@ oversample :: Int -> ShaderFunc Vec2 Color -> ShaderFunc Vec2 Color
 oversample aa f p = liftA1 averageV $ sequence (f <$> pts)
   where
   pts = (p ^+^ _) <$> offsets
-  offsets = fromVec2 <$> sampleGrid aa
+  offsets = cast <$> sampleGrid aa
 
 sampleGrid :: Int -> Array Vec2
 sampleGrid aa = vs <#> (_ ^-^ center)

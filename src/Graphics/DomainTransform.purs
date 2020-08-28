@@ -24,8 +24,9 @@ import Control.Bind (composeKleisli)
 import Data.Vec2 (Vec2(..))
 import Data.VectorSpace ((^-^), (*^), (<.>))
 import Math (tau)
-import Shader.Expr (Expr, abs, atan, cos, fromVec2, length, log, max, mod, num, projX, projY, sin, vec2)
+import Shader.Expr (Expr, abs, atan, cos, length, log, max, mod, num, projX, projY, sin, vec2)
 import Shader.Expr (reflect) as S
+import Shader.Expr.Cast (cast)
 import Shader.ExprBuilder (decl, ShaderFunc)
 
 toPoint :: Expr Vec2 -> { x :: Expr Number, y :: Expr Number }
@@ -36,7 +37,7 @@ liftF f a = pure $ f a
 
 -- Rigidbody
 translate :: forall a. Vec2 -> ShaderFunc Vec2 a -> ShaderFunc Vec2 a
-translate v = composeKleisli $ liftF (_ ^-^ fromVec2 v) >=> decl
+translate v = composeKleisli $ liftF (_ ^-^ cast v) >=> decl
 
 translateX :: forall a. Number -> ShaderFunc Vec2 a -> ShaderFunc Vec2 a
 translateX dx = translate (Vec2 dx 0.0)
