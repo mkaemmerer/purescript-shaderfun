@@ -28,18 +28,42 @@ import Prelude
 import Data.Foldable (class Foldable, foldl, sum)
 import Data.Tuple (Tuple(..), fst, snd)
 
--- Isomorphic to Group v, but we want to specify the (+, 0, negate) group, not the (*, 1, recip) group.
+-- | The `AdditiveGroup` type class is isomorphic to Group,
+-- | but useful when we want to specify the (+, 0, negate) group,
+-- | and not the (*, 1, recip) group.
+-- |
+-- | Instances should satisfy these laws:
+-- |
+-- | - `zeroV ^+^ a == a`
+-- | - `a ^+^ zeroV == a`
+-- | - `a ^-^ a == zeroV`
+-- | - `negateV a == zeroV ^-^ a`
+-- | - `a ^+^ b == b ^+^ a`
+-- | - `a ^+^ (b ^+^ c) == (a ^+^ b) ^+^ c`
 class AdditiveGroup v where
   zeroV :: v
   addV :: v -> v -> v
   subV :: v -> v -> v
   negateV :: v -> v
 
-class (AdditiveGroup vector) <= VectorSpace scalar vector | vector -> scalar where
+-- | The `VectorSpace` type class is for vectors and their associated scalar types
+-- |
+-- | Instances should satisfy these laws:
+-- |
+-- | - s *^ (u ^+^ v) == (s *^ u) ^+^ (s *^ v)`
+-- | - (s ^+^ t) *^ u == (s *^ u) ^+^ (t *^ u)`
+class (AdditiveGroup vector, AdditiveGroup scalar) <= VectorSpace scalar vector | vector -> scalar where
   scale :: scalar -> vector -> vector
+-- TODO: any other laws needed for this to be well-behaved?
 
-class (VectorSpace scalar vector, AdditiveGroup scalar) <= InnerSpace scalar vector | vector -> scalar where
+-- | The `InnerSpace` type class is for vectors that have a dot product
+-- |
+-- | Instances should satisfy these laws:
+-- |
+-- | - u <.> v == v <.> u
+class (VectorSpace scalar vector) <= InnerSpace scalar vector | vector -> scalar where
   dot :: vector -> vector -> scalar
+-- TODO: any other laws needed for this to be well-behaved?
 
 scaleLeft :: forall v s. VectorSpace s v => s -> v -> v
 scaleLeft = scale
@@ -50,6 +74,7 @@ scaleRight = flip scale
 divV :: forall v s. VectorSpace s v => DivisionRing s => v -> s -> v
 divV v s = v ^* (recip s)
 
+-- | Linear interpolation between two vectors
 lerp :: forall v s. VectorSpace s v => DivisionRing s => v -> v -> s -> v
 lerp a b t = a ^+^ t *^ (b ^-^ a)
 

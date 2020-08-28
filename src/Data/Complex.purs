@@ -3,6 +3,7 @@ module Data.Complex (Complex(..)) where
 import Prelude
 import Data.VectorSpace (class AdditiveGroup, class InnerSpace, class VectorSpace)
 
+-- | A representation of complex number in the form:  Complex (real part) (imaginary part)
 data Complex
   = Complex Number Number
 

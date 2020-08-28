@@ -11,12 +11,15 @@ import Partial.Unsafe (unsafePartial)
 import Shader.Expr (class TypedExpr, BinaryOp(..), Expr(..), Type(..), UnaryOp(..), complex, projImaginary, projReal)
 import Unsafe.Coerce (unsafeCoerce)
 
--- Code generation
+-- | Convert an expression to GLSL code
 toGLSL :: forall a. TypedExpr a => Expr a -> String
 toGLSL = unsafePartial $ normalize >>> printExpr
 
 printList :: Array String -> String
 printList = intercalate ", "
+
+-- Partial functions reference the fact that not all expressions in the grammar are well typed.
+-- Should (knock on wood) still be a total functions over well typed expressions
 
 printExpr :: Partial => forall a. Expr a -> String
 printExpr = printExprWithReturn
@@ -137,10 +140,10 @@ elaborate (ECall fn args)          = ECall fn (elaborate <$> args)
 elaborate (EIf i t e)              = EIf (elaborate i) (elaborate t) (elaborate e)
 elaborate (EBind name ty val body) = EBind name ty (elaborate val) (elaborate body)
 -- Not handled
-elaborate (EFst _) = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
-elaborate (ESnd _) = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
+elaborate (EFst _) = crash     -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
+elaborate (ESnd _) = crash     -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
 elaborate (ETuple _ _) = crash -- ETuple is not a valid top-level term
-elaborate (EUnit) = crash -- Unit is not a valid top-level term
+elaborate (EUnit) = crash      -- Unit is not a valid top-level term
 
 topPrec :: Int
 topPrec = 100
@@ -183,6 +186,8 @@ binaryPrecedence OpNeq       = 8
 binaryPrecedence OpAnd       = 9
 binaryPrecedence OpOr        = 10
 
+-- Add parenthesis to an expression to preserve its meaning
+-- Ideally, only add parenthesis when needed
 fixPrecedence :: Partial => forall a. Expr a -> Expr a
 fixPrecedence e = fixPrecedence' topPrec e
 
@@ -231,14 +236,13 @@ fixPrecedence' prec (EFst _) = crash
 fixPrecedence' prec (ESnd _) = crash
 fixPrecedence' prec (EUnit) = crash
 
-id :: forall a. a -> a
-id x = x
 
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
 
+-- Hoist declarations to top level
 liftDecl :: Partial => forall a. Expr a -> Expr a
-liftDecl e = runCont (liftDecl' e) id
+liftDecl e = runCont (liftDecl' e) identity
 
 liftDecl' :: Partial => forall a b. Expr a -> Cont (Expr b) (Expr a)
 liftDecl' (EVar name) = callCC $ (#) $ EVar name

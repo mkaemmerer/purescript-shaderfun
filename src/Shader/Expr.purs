@@ -187,7 +187,10 @@ binary op l r = EBinary op (eraseType l) (eraseType r)
 call :: forall t. String -> (forall a. Array (Expr a)) -> Expr t
 call fn args = ECall fn args
 
+-------------------------------------------------------------------------------
 -- Smart constructors
+-------------------------------------------------------------------------------
+
 bool :: Boolean -> Expr Boolean
 bool b = EBool b
 
@@ -233,9 +236,6 @@ matchE e lBranch rBranch = ifE tag lVal rVal
     tag = EFst (eraseType e)
     lVal = lBranch $ ESnd (eraseType e)
     rVal = rBranch $ ESnd (eraseType e)
-
-paren :: forall a. Expr a -> Expr a
-paren e = EParen e
 
 ifE :: forall a. Expr Boolean -> Expr a -> Expr a -> Expr a
 ifE i t e = EIf i t e

@@ -18,9 +18,10 @@ import Data.Tuple (Tuple(..))
 import Shader.Expr (class TypedExpr, Expr(..), bindE, fst, ifE, inl, inr, matchE, snd, tuple, unit)
 import Unsafe.Coerce (unsafeCoerce)
 
--- TODO: Can this be decomposed with Cont/ContT/State/StateT
-type BuilderState = { count :: Int, cont :: forall a. Expr a -> Expr a }
+-- | `Builder` is a monad for building expressions with unique variable names
 type Builder a = State BuilderState a
+type BuilderState = { count :: Int, cont :: forall a. Expr a -> Expr a }
+-- TODO: Can this be decomposed with Cont/ContT/State/StateT
 
 type ExprBuilder a = Builder (Expr a)
 type ShaderFunc a b = Expr a -> ExprBuilder b
@@ -33,7 +34,12 @@ emptyState = { count: 0, cont: identity }
 eraseType :: forall a b. (a -> a) -> (b -> b)
 eraseType = unsafeCoerce
 
--- Types that can be expressed or simulated in GLSL
+-- | The `Declarable` type class is for types that have 
+-- | a corresponding representation in GLSL.
+-- | 
+-- | `decl` yields an expression which is semantically equivalent
+-- | but could be more operationally efficient.
+-- | Use `decl` to avoid reevaluating common sub expressions.
 class Declarable t where
   decl :: Expr t -> ExprBuilder t
 
@@ -79,6 +85,7 @@ declEither e = do
 default :: forall a. Expr a
 default = unsafeCoerce unit
 
+-- | Run an expression builder and yield the result
 runExprBuilder :: forall t. ExprBuilder t -> Expr t
 runExprBuilder builder = cont e
   where

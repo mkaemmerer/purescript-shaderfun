@@ -15,6 +15,7 @@ import Shader.ExprBuilder (type (|>), decl)
 type Point = Complex
 type IterCount = Number
 
+-- | Repeat a monadic action a specified number of times
 repeatM :: forall m a. MonadRec m => Int -> (a -> m a) -> a -> m a
 repeatM n action seed = tailRecM2 go n seed
   where
@@ -22,6 +23,7 @@ repeatM n action seed = tailRecM2 go n seed
     | n' <= 0    = pure $ Done seed'
     | otherwise = action seed' <#> (\b -> Loop { a: (n'-1), b: b })
 
+-- | Repeat an action a specified number of times
 repeatC :: forall a f. (Category f) => Int -> f a a -> f a a
 repeatC n f = tailRec go { acc: identity, count: n }
   where
@@ -37,6 +39,7 @@ orbitStep c zt = do
   t' <- decl $ ifE esc t (t + one)
   pure (tuple z' t')
 
+-- | `juliaSet n c` approximates a julia set centered at `c` by iterating its orbit `n` times.
 juliaSet :: Int -> Complex -> (Vec2 |> Number)
 juliaSet n c z = do
   let c' = cast c
@@ -48,6 +51,7 @@ juliaSet n c z = do
   f <- decl $ d / n'
   pure f
 
+-- | `mandelbrotSet n` approximates the mandelbrot set by iterating its orbit `n` times.
 mandelbrotSet :: Int -> (Vec2 |> Number)
 mandelbrotSet n c = do
   let c' = vec2ToComplex c

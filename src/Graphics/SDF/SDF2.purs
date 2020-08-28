@@ -21,6 +21,7 @@ import Shader.Expr (absV, gt, gte, ifE, length, lt, max, min, num, projY, sqrt, 
 import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (type (|>), decl)
 
+-- | A signed distance field over the domain R2
 type SDF2 = Vec2 |> Number
 
 liftF :: forall f a b. Applicative f => (a -> b) -> a -> f b
@@ -32,7 +33,11 @@ pairs xs = (Tuple e s) : (zip (toArray xs) (tail xs))
   s = head xs
   e = last xs
 
+-------------------------------------------------------------------------------
 -- Geometry
+-------------------------------------------------------------------------------
+
+-- | `box v` is a rectangle centered at the origin with a corner at `v`
 box :: Vec2 -> SDF2
 box corner p = do
   d <- decl $ (absV p) ^-^ (cast corner)
@@ -41,6 +46,7 @@ box corner p = do
   m <- decl $ (min (max d'.x d'.y) zero)
   pure $ (length c) + m
 
+-- | A polygon, given by an array of points. Well defined on arrays with at least 3 elements.
 polygon :: Partial => Array Vec2 -> SDF2
 polygon vs
   | Array.length vs >= 3 = polygon' $ fromJust $ fromArray vs
@@ -74,7 +80,10 @@ polygon' vs p = do
     s <- decl $ s0 * (ifE cc (num $ 1.0) (num $ -1.0))
     pure $ Tuple d s
 
+-------------------------------------------------------------------------------
 -- Transform
+-------------------------------------------------------------------------------
+
 repeatLogPolarSDF :: Number -> SDF2 -> SDF2
 repeatLogPolarSDF count sdf p = repeatLogPolar count sdf >=> scaleRange $ p
   where

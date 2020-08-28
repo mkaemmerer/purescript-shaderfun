@@ -4,6 +4,8 @@ import Prelude
 
 import Data.VectorSpace (class AdditiveGroup, class VectorSpace)
 
+-- | A representation for colors in the RGB format
+-- | component values take the range from [0.0, 1.0]
 data Color
   = Color Number Number Number
 

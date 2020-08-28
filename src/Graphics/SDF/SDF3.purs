@@ -16,9 +16,12 @@ import Shader.ExprBuilder (type (|>), decl)
 type SDF3 = Vec3 |> Number
 
 -- Geometry
+
+-- | `sphere r` is a sphere centered at the origin with radius `r`
 sphere :: Number -> SDF3
 sphere = circle
 
+-- | `box v` is a rectangle centered at the origin with a corner at `v`
 box :: Vec3 -> SDF3
 box corner p = do
   d <- decl $ (absV p) ^-^ (cast corner)
