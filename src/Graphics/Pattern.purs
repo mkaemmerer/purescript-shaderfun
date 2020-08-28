@@ -4,8 +4,8 @@ import Prelude hiding (min,max,mod)
 
 import Data.Color (Color)
 import Data.Vec2 (Vec2)
-import Shader.Cast (cast)
 import Shader.Expr (Expr, color, floor, num, mod, projX, projY)
+import Shader.Expr.Cast (cast)
 import Shader.ExprBuilder (decl, type (|>))
 
 type Pattern = Vec2 |> Color

@@ -3,8 +3,8 @@ module Graphics.ColorRamp (ColorRamp, signRamp, grayscaleRamp) where
 import Prelude
 
 import Data.Color (Color(..))
-import Shader.Cast (cast)
 import Shader.Expr (Expr, color, gt, ifE)
+import Shader.Expr.Cast (cast)
 import Shader.ExprBuilder (type (|>))
 
 type ColorRamp = Number |> Color
