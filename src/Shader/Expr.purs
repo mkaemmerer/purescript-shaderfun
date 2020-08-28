@@ -4,6 +4,10 @@ module Shader.Expr
   , UnaryOp(..)
   , BinaryOp(..)
   , class TypedExpr
+  , class VecExpr
+  , class HasX
+  , class HasY
+  , class HasZ
   , abs
   , absV
   , atan
@@ -27,6 +31,7 @@ module Shader.Expr
   , fromColor
   , fromComplex
   , fromVec2
+  , fromVec3
   , complexToVec2
   , vec2ToComplex
   , gt
@@ -46,6 +51,7 @@ module Shader.Expr
   , p
   , projX
   , projY
+  , projZ
   , projReal
   , projImaginary
   , projR
@@ -58,6 +64,7 @@ module Shader.Expr
   , sqrt
   , typeof
   , vec2
+  , vec3
   ) where
 
 import Prelude
@@ -68,6 +75,7 @@ import Data.Either (Either)
 import Data.HeytingAlgebra (ff, implies, tt)
 import Data.Tuple (Tuple)
 import Data.Vec2 (Vec2(..))
+import Data.Vec3 (Vec3(..))
 import Data.VectorSpace (class AdditiveGroup, class InnerSpace, class VectorSpace, negateV, zeroV, (*^), (^+^), (^-^), (<.>))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -75,6 +83,7 @@ data Type
   = TBoolean
   | TScalar
   | TVec2
+  | TVec3
   | TComplex
   | TColor
 
@@ -91,6 +100,7 @@ data UnaryOp
   | OpNot
   | OpProjX
   | OpProjY
+  | OpProjZ
   | OpProjReal
   | OpProjImaginary
   | OpProjR
@@ -128,6 +138,7 @@ data Expr t
   | EBool Boolean
   | ENum Number
   | EVec2 (Expr Number) (Expr Number)
+  | EVec3 (Expr Number) (Expr Number) (Expr Number)
   | EComplex (Expr Number) (Expr Number)
   | EColor (Expr Number) (Expr Number) (Expr Number)
   | EUnary UnaryOp (forall a. Expr a)
@@ -153,6 +164,9 @@ instance typedExprExprNumber :: TypedExpr Number where
 
 instance typedExprExprVec2 :: TypedExpr Vec2 where
   typeof e = TVec2
+
+instance typedExprExprVec3 :: TypedExpr Vec3 where
+  typeof e = TVec3
 
 instance typedExprExprComplex :: TypedExpr Complex where
   typeof e = TComplex
@@ -182,6 +196,9 @@ num n = ENum n
 
 vec2 :: Expr Number -> Expr Number -> Expr Vec2
 vec2 x y = EVec2 x y
+
+vec3 :: Expr Number -> Expr Number  -> Expr Number -> Expr Vec3
+vec3 x y z = EVec3 x y z
 
 complex :: Expr Number -> Expr Number -> Expr Complex
 complex r i = EComplex r i
@@ -227,7 +244,10 @@ bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
 bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
 
 fromVec2 :: Vec2 -> Expr Vec2
-fromVec2 (Vec2 x y) = vec2 (num x) (num y)
+fromVec2 (Vec2 v) = vec2 (num v.x) (num v.y)
+
+fromVec3 :: Vec3 -> Expr Vec3
+fromVec3 (Vec3 v) = vec3 (num v.x) (num v.y) (num v.z)
 
 fromComplex :: Complex -> Expr Complex
 fromComplex (Complex r i) = complex (num r) (num i)
@@ -245,11 +265,31 @@ vec2ToComplex = unsafeCoerce
 p :: Expr Vec2
 p = EVar "p"
 
-projX :: Expr Vec2 -> Expr Number
+class
+  ( TypedExpr v
+  , VectorSpace (Expr Number) (Expr v)
+  , InnerSpace (Expr Number) (Expr v)
+  ) <= VecExpr v
+class (VecExpr t) <= HasX t
+class (VecExpr t) <= HasY t
+class (VecExpr t) <= HasZ t
+
+instance vecExprVec2 :: VecExpr Vec2
+instance vecExprVec3 :: VecExpr Vec3
+instance hasXVec2 :: HasX Vec2
+instance hasYVec2 :: HasY Vec2
+instance hasXVec3 :: HasX Vec3
+instance hasYVec3 :: HasY Vec3
+instance hasZVec3 :: HasZ Vec3
+
+projX :: forall vec. (HasX vec) => Expr vec -> Expr Number
 projX v = unary OpProjX v
 
-projY :: Expr Vec2 -> Expr Number
+projY :: forall vec. (HasY vec) => Expr vec -> Expr Number
 projY v = unary OpProjY v
+
+projZ :: forall vec. (HasZ vec) => Expr vec -> Expr Number
+projZ v = unary OpProjZ v
 
 projReal :: Expr Complex -> Expr Number
 projReal c = unary OpProjReal c
@@ -331,19 +371,19 @@ smoothstep :: Expr Number -> Expr Number -> Expr Number -> Expr Number
 smoothstep lo hi x = call "smoothstep" [ eraseType lo, eraseType hi, eraseType x ]
 
 -- Vector functions
-absV :: Expr Vec2 -> Expr Vec2
+absV :: forall v. VecExpr v => Expr v -> Expr v
 absV v = call "abs" [ eraseType v ]
 
-length :: Expr Vec2 -> Expr Number
+length :: forall v. VecExpr v => Expr v -> Expr Number
 length v = call "length" [ eraseType v ]
 
-dotV :: Expr Vec2 -> Expr Vec2 -> Expr Number
+dotV :: forall v. VecExpr v => Expr v -> Expr v -> Expr Number
 dotV u v = call "dot" [ eraseType u, eraseType v ]
 
 dotC :: Expr Complex -> Expr Complex -> Expr Number
 dotC u v = call "dot" [ eraseType u, eraseType v ]
 
-reflect :: Expr Vec2 -> Expr Vec2 -> Expr Vec2
+reflect :: forall v. VecExpr v => Expr v -> Expr v -> Expr v
 reflect u v = call "reflect" [ eraseType u, eraseType v ]
 
 -- Color functions
@@ -440,8 +480,23 @@ instance additiveGroupExprVec2 :: AdditiveGroup (Expr Vec2) where
 instance vectorSpaceExprVec2 :: VectorSpace (Expr Number) (Expr Vec2) where
   scale = binary OpScaleV
 
-instance innerSpaceExprVec :: InnerSpace (Expr Number) (Expr Vec2) where
+instance innerSpaceExprVec2 :: InnerSpace (Expr Number) (Expr Vec2) where
   dot = dotV
+
+
+-- Vec3
+instance additiveGroupExprVec3 :: AdditiveGroup (Expr Vec3) where
+  zeroV = fromVec3 zeroV
+  addV = binary OpPlusV
+  subV = binary OpMinusV
+  negateV = binary OpScaleV (num (-1.0))
+
+instance vectorSpaceExprVec3 :: VectorSpace (Expr Number) (Expr Vec3) where
+  scale = binary OpScaleV
+
+instance innerSpaceExprVec3 :: InnerSpace (Expr Number) (Expr Vec3) where
+  dot = dotV
+
 
 -- Color
 instance semiringExprColor :: Semiring (Expr Color) where

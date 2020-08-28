@@ -5,7 +5,7 @@ import Prelude
 import Data.Color (Color)
 import Data.Vec2 (Vec2)
 import Graphics.ColorRamp (signRamp)
-import Graphics.SDF2 (circle)
+import Graphics.SDF (circle)
 import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
 

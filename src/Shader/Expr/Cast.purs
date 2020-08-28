@@ -5,7 +5,8 @@ import Data.Complex (Complex)
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
-import Shader.Expr (Expr, bool, fromColor, fromComplex, fromVec2, fst, inl, inr, num, projB, projG, projImaginary, projR, projReal, projX, projY, snd, tuple)
+import Data.Vec3 (Vec3)
+import Shader.Expr (Expr, bool, fromColor, fromComplex, fromVec2, fromVec3, fst, inl, inr, num, projB, projG, projImaginary, projR, projReal, projX, projY, projZ, snd, tuple)
 
 
 class Castable t where
@@ -19,6 +20,9 @@ instance castableNumber :: Castable Number where
 
 instance castableVec2 :: Castable Vec2 where
   cast = fromVec2
+
+instance castableVec3 :: Castable Vec3 where
+  cast = fromVec3
 
 instance castableComplex :: Castable Complex where
   cast = fromComplex
@@ -39,6 +43,9 @@ class Destructurable t record | t -> record where
 
 instance destructurableVec2 :: Destructurable Vec2 { x :: Expr Number, y :: Expr Number } where
   from v = { x: projX v, y: projY v }
+
+instance destructurableVec3 :: Destructurable Vec3 { x :: Expr Number, y :: Expr Number, z :: Expr Number } where
+  from v = { x: projX v, y: projY v, z: projZ v }
 
 instance destructurableComplex :: Destructurable Complex { r :: Expr Number, i :: Expr Number } where
   from c = { r: projReal c, i: projImaginary c }

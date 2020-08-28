@@ -33,9 +33,10 @@ printExpr' :: Partial => forall a. Expr a -> String
 printExpr' (EVar name)              = name
 printExpr' (ENum n)                 = show n
 printExpr' (EBool b)                = show b
-printExpr' (EVec2 x y)              = "vec2(" <> printList [ printExpr' x, printExpr' y ] <> ")"
-printExpr' (EComplex r i)           = "vec2(" <> printList [ printExpr' r, printExpr' i ] <> ")"
-printExpr' (EColor r g b)           = "vec3(" <> printList [ printExpr' r, printExpr' g, printExpr' b ] <> ")"
+printExpr' (EVec2 x y)              = "vec2(" <> printList (printExpr' <$> [ x, y ]) <> ")"
+printExpr' (EVec3 x y z)            = "vec3(" <> printList (printExpr' <$> [ x, y, z ]) <> ")"
+printExpr' (EComplex r i)           = "vec2(" <> printList (printExpr' <$> [ r, i]) <> ")"
+printExpr' (EColor r g b)           = "vec3(" <> printList (printExpr' <$> [ r, g, b ]) <> ")"
 printExpr' (EUnary op e)            = printUnary op e
 printExpr' (EBinary op l r)         = printBinary op l r
 printExpr' (EParen e)               = "(" <> printExpr' e <> ")"
@@ -54,6 +55,7 @@ printType :: Type -> String
 printType TBoolean = "bool"
 printType TScalar  = "float"
 printType TVec2    = "vec2"
+printType TVec3    = "vec3"
 printType TComplex = "vec2"
 printType TColor   = "vec3"
 
@@ -125,6 +127,7 @@ elaborate (EVar name)              = EVar name
 elaborate (ENum n)                 = ENum n
 elaborate (EBool b)                = EBool b
 elaborate (EVec2 x y)              = EVec2 (elaborate x) (elaborate y)
+elaborate (EVec3 x y z)            = EVec3 (elaborate x) (elaborate y) (elaborate z)
 elaborate (EComplex r i)           = EComplex (elaborate r) (elaborate i)
 elaborate (EColor r g b)           = EColor (elaborate r) (elaborate g) (elaborate b)
 elaborate (EUnary op e)            = EUnary op (elaborate e)
@@ -147,6 +150,7 @@ unaryPrecedence OpNegate = 1
 unaryPrecedence OpNot    = 1
 unaryPrecedence OpProjX  = 2
 unaryPrecedence OpProjY  = 2
+unaryPrecedence OpProjZ  = 2
 unaryPrecedence OpProjR  = 2
 unaryPrecedence OpProjG  = 2
 unaryPrecedence OpProjB  = 2
@@ -190,6 +194,11 @@ fixPrecedence' prec (EVec2 x y) = EVec2 x' y'
   where
     x' = fixPrecedence' topPrec x
     y' = fixPrecedence' topPrec y
+fixPrecedence' prec (EVec3 x y z) = EVec3 x' y' z'
+  where
+    x' = fixPrecedence' topPrec x
+    y' = fixPrecedence' topPrec y
+    z' = fixPrecedence' topPrec z
 fixPrecedence' prec (EComplex r i) = EComplex r' i'
   where
     r' = fixPrecedence' topPrec r
@@ -239,6 +248,11 @@ liftDecl' (EVec2 x y) = do
   x' <- liftDecl' x
   y' <- liftDecl' y
   callCC $ (#) $ EVec2 x' y'
+liftDecl' (EVec3 x y z) = do
+  x' <- liftDecl' x
+  y' <- liftDecl' y
+  z' <- liftDecl' z
+  callCC $ (#) $ EVec3 x' y' z'
 liftDecl' (EComplex r i) = do
   r' <- liftDecl' r
   i' <- liftDecl' i
