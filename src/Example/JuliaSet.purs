@@ -8,12 +8,8 @@ import Data.Vec2 (Vec2)
 import Graphics.ColorRamp (grayscaleRamp)
 import Graphics.DomainTransform (scale)
 import Graphics.Fractal (juliaSet)
-import Shader.Expr (Expr)
 import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
-
-type Point = Expr Complex
-type Iters = Expr Number
 
 iters :: Int
 iters = 200

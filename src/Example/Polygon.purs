@@ -9,12 +9,11 @@ import Graphics.DomainTransform (repeatGrid, repeatPolar)
 import Graphics.SDF2 (dilate, polygon)
 import Math (tan, tau)
 import Partial.Unsafe (unsafePartial)
-import Shader.ExprBuilder (decl)
 import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
 
 program :: ShaderProgram Vec2 Color
-program = shaderProgram $ geometry >=> decl >=> signRamp
+program = shaderProgram $ geometry >=> signRamp
   where
     count = 5.0
     a = tau / (count * 2.0)

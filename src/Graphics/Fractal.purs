@@ -10,7 +10,7 @@ import Data.Vec2 (Vec2)
 import Data.VectorSpace (magnitudeSquared)
 import Shader.Cast (cast)
 import Shader.Expr (Expr, fst, gt, ifE, log2, num, snd, tuple, vec2ToComplex)
-import Shader.ExprBuilder (ShaderFunc, decl)
+import Shader.ExprBuilder (type (|>), decl)
 
 type Point = Complex
 type IterCount = Number
@@ -31,7 +31,7 @@ repeatC n f = tailRec go { acc: identity, count: n }
   go { acc, count: 0 } = Done acc
   go { acc, count }    = Loop { acc: f >>> acc, count: count - 1}
 
-orbitStep :: Expr Point -> ShaderFunc (Tuple Point IterCount) (Tuple Point IterCount)
+orbitStep :: Expr Point -> (Tuple Point IterCount) |> (Tuple Point IterCount)
 orbitStep c zt = do
   let (Tuple z t) = toTuple zt
   q <- decl $ (z * z) + c
@@ -40,7 +40,7 @@ orbitStep c zt = do
   t' <- decl $ ifE esc t (t + one)
   pure (tuple z' t')
 
-juliaSet :: Int -> Complex -> ShaderFunc Vec2 Number
+juliaSet :: Int -> Complex -> (Vec2 |> Number)
 juliaSet n c z = do
   let c' = cast c
   let n' = num $ toNumber n
@@ -51,7 +51,7 @@ juliaSet n c z = do
   f <- decl $ d / n'
   pure f
 
-mandelbrotSet :: Int -> ShaderFunc Vec2 Number
+mandelbrotSet :: Int -> (Vec2 |> Number)
 mandelbrotSet n c = do
   let c' = vec2ToComplex c
   let n' = num $ toNumber n

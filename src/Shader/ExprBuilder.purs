@@ -1,4 +1,13 @@
-module Shader.ExprBuilder (Builder, BuilderState, ExprBuilder, ShaderFunc, class Declarable, decl, runExprBuilder) where
+module Shader.ExprBuilder
+  ( Builder
+  , BuilderState
+  , ExprBuilder
+  , ShaderFunc
+  , class Declarable
+  , decl
+  , runExprBuilder
+  , type (|>)
+  ) where
 
 import Prelude hiding (unit)
 
@@ -16,13 +25,15 @@ type Builder a = State BuilderState a
 type ExprBuilder a = Builder (Expr a)
 type ShaderFunc a b = Expr a -> ExprBuilder b
 
+infixr 4 type ShaderFunc as |>
+
 emptyState :: BuilderState
 emptyState = { count: 0, cont: identity }
 
 eraseType :: forall a b. (a -> a) -> (b -> b)
 eraseType = unsafeCoerce
 
-
+-- Types that can be expressed or simulated in GLSL
 class Declarable t where
   decl :: Expr t -> ExprBuilder t
 

@@ -3,6 +3,7 @@ module Shader.ExprFunction
   , runShaderProgram
   , BuilderFunc
   , ShaderProgram
+  , type (:>)
   ) where
 
 import Prelude
@@ -18,6 +19,8 @@ import Shader.ExprBuilder (Builder, runExprBuilder)
 type BFunc a b = a -> Builder b
 data BuilderFunc a b = BuilderFunc (BFunc a b)
 type ShaderProgram a b = BuilderFunc (Expr a) (Expr b)
+
+infixr 4 type ShaderProgram as :>
 
 shaderProgram :: forall a b. BFunc (Expr a) (Expr b) -> ShaderProgram a b
 shaderProgram = wrapBuilder

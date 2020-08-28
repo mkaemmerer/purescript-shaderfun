@@ -5,9 +5,9 @@ import Prelude
 import Data.Color (Color(..))
 import Shader.Cast (cast)
 import Shader.Expr (Expr, color, gt, ifE)
-import Shader.ExprBuilder (ShaderFunc)
+import Shader.ExprBuilder (type (|>))
 
-type ColorRamp = ShaderFunc Number Color
+type ColorRamp = Number |> Color
 
 grayscale :: Number -> Expr Color
 grayscale v = cast $ Color v v v

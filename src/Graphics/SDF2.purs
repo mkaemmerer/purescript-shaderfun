@@ -30,10 +30,9 @@ import Graphics.DomainTransform (repeatLogPolar, scale)
 import Math (tau)
 import Shader.Expr (Expr, abs, absV, gt, gte, ifE, length, lt, max, min, num, projX, projY, saturate, sqrt, vec2)
 import Shader.Expr.Cast (cast)
-import Shader.ExprBuilder (ShaderFunc, decl)
+import Shader.ExprBuilder (type (|>), decl)
 
-type SDF2
-  = ShaderFunc Vec2 Number
+type SDF2 = Vec2 |> Number
 
 toPoint :: Expr Vec2 -> { x :: Expr Number, y :: Expr Number }
 toPoint e = { x: projX e, y: projY e }
@@ -53,10 +52,11 @@ point = length >>> pure
 
 circle :: Number -> SDF2
 circle r p = do
-  d <- point p
-  pure $ d - (num r)
+  c <- point p
+  d <- decl $ c - (num r)
+  pure $ d
 
-projectSegment :: Expr Vec2 -> Expr Vec2 -> ShaderFunc Vec2 Vec2
+projectSegment :: Expr Vec2 -> Expr Vec2 -> Vec2 |> Vec2
 projectSegment a b p = do
   pa <- decl $ p ^-^ a
   ba <- decl $ b ^-^ a

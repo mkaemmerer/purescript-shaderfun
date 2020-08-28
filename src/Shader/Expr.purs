@@ -203,6 +203,7 @@ snd :: forall a b. Expr (Tuple a b) -> Expr b
 snd t = ESnd (eraseType t)
 
 -- Encode sum types using product types
+-- TODO: can this be generalized with Generics/Type Reps?
 inl :: forall a b. Expr a -> Expr (Either a b)
 inl a = ETuple (eraseType tagLeft) (eraseType a)
 

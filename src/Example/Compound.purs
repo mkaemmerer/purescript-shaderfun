@@ -8,12 +8,11 @@ import Graphics.ColorRamp (signRamp)
 import Graphics.DomainTransform (mirror, repeatPolar, rotate, translateX)
 import Graphics.SDF2 (blend, box, circle, invert, outline)
 import Math (tau)
-import Shader.ExprBuilder (decl)
 import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
 
 program :: ShaderProgram Vec2 Color
-program = shaderProgram $ geometry >=> decl >=> signRamp
+program = shaderProgram $ geometry >=> signRamp
   where
     baseGeometry = invert $ outline 10.0 $ blend (0.5) (circle 100.0) (box (Vec2 120.0 120.0))
     geometry = mirror (tau / 4.0) $ repeatPolar 5.0 $ translateX 400.0 $ rotate (0.1) baseGeometry

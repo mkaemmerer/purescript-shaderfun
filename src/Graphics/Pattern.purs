@@ -4,10 +4,11 @@ import Prelude hiding (min,max,mod)
 
 import Data.Color (Color)
 import Data.Vec2 (Vec2)
+import Shader.Cast (cast)
 import Shader.Expr (Expr, color, floor, num, mod, projX, projY)
-import Shader.ExprBuilder (ShaderFunc, decl)
+import Shader.ExprBuilder (decl, type (|>))
 
-type Pattern = ShaderFunc Vec2 Color
+type Pattern = Vec2 |> Color
 
 toPoint :: Expr Vec2 -> { x :: Expr Number, y :: Expr Number }
 toPoint e = { x: projX e, y: projY e }
@@ -36,3 +37,6 @@ checkerboard p = do
   y <- stripesVertical p
   c <- decl $ x `xor` y
   pure c
+
+solidColor :: Color -> Pattern
+solidColor c = const $ pure $ cast c
