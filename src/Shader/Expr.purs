@@ -147,7 +147,6 @@ data Expr t
   | ETuple (forall a. Expr a) (forall a. Expr a)
   | EFst (Expr (forall a. Tuple t a))
   | ESnd (Expr (forall a. Tuple a t))
-  | EParen (Expr t)
   | ECall String (forall a. Array (Expr a))
   | EIf (Expr Boolean) (Expr t) (Expr t)
   | EBind String Type (forall a. Expr a) (Expr t)

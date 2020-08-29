@@ -28,31 +28,30 @@ printExprWithReturn :: Partial => forall a. Expr a -> String
 printExprWithReturn (EBind name ty EUnit body) =
   printType ty <> " " <> name <> ";\n" <> printExprWithReturn body
 printExprWithReturn (EBind name ty val body) =
-  printType ty <> " " <> name <> " = " <> printExpr' val <> ";\n" <> printExprWithReturn body
+  printType ty <> " " <> name <> " = " <> printExpr' topPrec val <> ";\n" <> printExprWithReturn body
 printExprWithReturn e =
-  "return " <> printExpr' e <> ";"
+  "return " <> printExpr' topPrec e <> ";"
 
-printExpr' :: Partial => forall a. Expr a -> String
-printExpr' (EVar name)              = name
-printExpr' (ENum n)                 = show n
-printExpr' (EBool b)                = show b
-printExpr' (EVec2 x y)              = "vec2(" <> printList (printExpr' <$> [ x, y ]) <> ")"
-printExpr' (EVec3 x y z)            = "vec3(" <> printList (printExpr' <$> [ x, y, z ]) <> ")"
-printExpr' (EComplex r i)           = "vec2(" <> printList (printExpr' <$> [ r, i]) <> ")"
-printExpr' (EColor r g b)           = "vec3(" <> printList (printExpr' <$> [ r, g, b ]) <> ")"
-printExpr' (EUnary op e)            = printUnary op e
-printExpr' (EBinary op l r)         = printBinary op l r
-printExpr' (EParen e)               = "(" <> printExpr' e <> ")"
-printExpr' (ECall fn args)          = fn <> "(" <> printList (printExpr' <$> args) <> ")"
-printExpr' (EIf i t e)              = printExpr' i <> " ? " <> printExpr' t <> " : " <> printExpr' e
+printExpr' :: Partial => forall a. Int -> Expr a -> String
+printExpr' p (EVar name)              = name
+printExpr' p (ENum n)                 = show n
+printExpr' p (EBool b)                = show b
+printExpr' p (EVec2 x y)              = "vec2(" <> printList (printExpr' topPrec <$> [ x, y ]) <> ")"
+printExpr' p (EVec3 x y z)            = "vec3(" <> printList (printExpr' topPrec <$> [ x, y, z ]) <> ")"
+printExpr' p (EComplex r i)           = "vec2(" <> printList (printExpr' topPrec <$> [ r, i ]) <> ")"
+printExpr' p (EColor r g b)           = "vec3(" <> printList (printExpr' topPrec <$> [ r, g, b ]) <> ")"
+printExpr' p (EUnary op e)            = printUnary p op e
+printExpr' p (EBinary op l r)         = printBinary p op l r
+printExpr' p (ECall fn args)          = fn <> "(" <> printList (printExpr' topPrec <$> args) <> ")"
+printExpr' p (EIf i t e)              = printIf p i t e
 -- When unit is used as a sentinel value, don't initialize to anything
-printExpr' (EBind name ty EUnit body) = printType ty <> " " <> name <> ";\n" <> printExpr' body
-printExpr' (EBind name ty val body)   = printType ty <> " " <> name <> " = " <> printExpr' val <> ";\n" <> printExpr' body
+printExpr' p (EBind name ty EUnit body) = printType ty <> " " <> name <> ";\n" <> printExpr' topPrec body
+printExpr' p (EBind name ty val body)   = printType ty <> " " <> name <> " = " <> printExpr' topPrec val <> ";\n" <> printExpr' topPrec body
 -- Not handled
-printExpr' (ETuple _ _) = crash
-printExpr' (EFst _) = crash
-printExpr' (ESnd _) = crash
-printExpr' (EUnit) = crash
+printExpr' p (ETuple _ _) = crash
+printExpr' p (EFst _) = crash
+printExpr' p (ESnd _) = crash
+printExpr' p (EUnit) = crash
 
 printType :: Type -> String
 printType TBoolean = "bool"
@@ -62,20 +61,36 @@ printType TVec3    = "vec3"
 printType TComplex = "vec2"
 printType TColor   = "vec3"
 
-printUnary :: Partial => forall a. UnaryOp -> Expr a -> String
-printUnary OpNegate e = "-" <> printExpr' e
-printUnary OpNot    e = "!" <> printExpr' e
-printUnary OpProjX  e = printExpr' e <> ".x"
-printUnary OpProjY  e = printExpr' e <> ".y"
-printUnary OpProjR  e = printExpr' e <> ".r"
-printUnary OpProjG  e = printExpr' e <> ".g"
-printUnary OpProjB  e = printExpr' e <> ".b"
-printUnary OpProjReal       e = printExpr' e <> ".x"
-printUnary OpProjImaginary  e = printExpr' e <> ".y"
-
-printBinary :: Partial => forall a. BinaryOp -> Expr a -> Expr a -> String
-printBinary op l r = intercalate " " [ printExpr' l, printBinaryOp op, printExpr' r ]
+printIf :: Partial => forall a. Int -> Expr Boolean -> Expr a -> Expr a -> String
+printIf p i t e = if p < ifPrec
+    then "(" <> printIf' topPrec <> ")"
+    else printIf' ifPrec
   where
+    printIf' prec = printExpr' prec i <> " ? " <> printExpr' prec t <> " : " <> printExpr' prec e
+
+printUnary :: Partial => forall a. Int -> UnaryOp -> Expr a -> String
+printUnary p op e = if p < opPrec
+    then printUnaryOp op $ "(" <> printExpr' topPrec e <> ")"
+    else printUnaryOp op $ printExpr' opPrec e
+  where
+    opPrec = unaryPrec op
+    printUnaryOp OpNegate         str = "-" <> str
+    printUnaryOp OpNot            str = "!" <> str
+    printUnaryOp OpProjX          str = str <> ".x"
+    printUnaryOp OpProjY          str = str <> ".y"
+    printUnaryOp OpProjR          str = str <> ".r"
+    printUnaryOp OpProjG          str = str <> ".g"
+    printUnaryOp OpProjB          str = str <> ".b"
+    printUnaryOp OpProjReal       str = str <> ".x"
+    printUnaryOp OpProjImaginary  str = str <> ".y"
+
+printBinary :: Partial => forall a. Int -> BinaryOp -> Expr a -> Expr a -> String
+printBinary p op l r = if p < opPrec
+    then "(" <> printBinary' topPrec <> ")"
+    else printBinary' opPrec
+  where
+    printBinary' prec = intercalate " " [ printExpr' prec l, printBinaryOp op, printExpr' prec r ]
+    opPrec = binaryPrec op
     printBinaryOp OpEq        = "=="
     printBinaryOp OpNeq       = "!="
     printBinaryOp OpAnd       = "&&"
@@ -101,9 +116,53 @@ printBinary op l r = intercalate " " [ printExpr' l, printBinaryOp op, printExpr
     printBinaryOp OpDivC   = crash -- GLSL has no builtin operation. Handled by "elaborating"
     printBinaryOp OpTimesC = crash -- GLSL has no builtin operation. Handled by "elaborating"
 
+topPrec :: Int
+topPrec = 100
+
+unaryPrec :: UnaryOp -> Int
+unaryPrec OpNegate = 1
+unaryPrec OpNot    = 1
+unaryPrec OpProjX  = 2
+unaryPrec OpProjY  = 2
+unaryPrec OpProjZ  = 2
+unaryPrec OpProjR  = 2
+unaryPrec OpProjG  = 2
+unaryPrec OpProjB  = 2
+unaryPrec OpProjReal      = 2
+unaryPrec OpProjImaginary = 2
+
+binaryPrec :: BinaryOp -> Int
+binaryPrec OpTimes     = 3
+binaryPrec OpDiv       = 3
+binaryPrec OpScaleV    = 4
+binaryPrec OpScaleC    = 4
+binaryPrec OpTimesC    = 4
+binaryPrec OpDivC      = 4
+binaryPrec OpScaleCol  = 4
+binaryPrec OpTimesCol  = 4
+binaryPrec OpPlus      = 5
+binaryPrec OpPlusV     = 6
+binaryPrec OpPlusC     = 6
+binaryPrec OpPlusCol   = 6
+binaryPrec OpMinus     = 5
+binaryPrec OpMinusV    = 6
+binaryPrec OpMinusC    = 6
+binaryPrec OpMinusCol  = 6
+binaryPrec OpLt        = 7
+binaryPrec OpLte       = 7
+binaryPrec OpGt        = 7
+binaryPrec OpGte       = 7
+binaryPrec OpEq        = 8
+binaryPrec OpNeq       = 8
+binaryPrec OpAnd       = 9
+binaryPrec OpOr        = 10
+
+ifPrec :: Int
+ifPrec = 11
+
 -- Normalization 
 normalize :: forall a. TypedExpr a => Expr a -> Expr a
-normalize = unsafePartial $ elaborate >>> liftDecl >>> fixPrecedence
+normalize = unsafePartial $ elaborate >>> liftDecl
 
 elaborate :: Partial => forall a. Expr a -> Expr a
 elaborate (EBinary OpTimesC c1 c2) = eraseType $ complex (r1*r2 - i1*i2) (r1*i2 + r2*i1)
@@ -135,7 +194,6 @@ elaborate (EComplex r i)           = EComplex (elaborate r) (elaborate i)
 elaborate (EColor r g b)           = EColor (elaborate r) (elaborate g) (elaborate b)
 elaborate (EUnary op e)            = EUnary op (elaborate e)
 elaborate (EBinary op l r)         = EBinary op (elaborate l) (elaborate r)
-elaborate (EParen e)               = EParen (elaborate e)
 elaborate (ECall fn args)          = ECall fn (elaborate <$> args)
 elaborate (EIf i t e)              = EIf (elaborate i) (elaborate t) (elaborate e)
 elaborate (EBind name ty val body) = EBind name ty (elaborate val) (elaborate body)
@@ -144,97 +202,6 @@ elaborate (EFst _) = crash     -- ETuple/EIf are the only inhabitants of type (E
 elaborate (ESnd _) = crash     -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
 elaborate (ETuple _ _) = crash -- ETuple is not a valid top-level term
 elaborate (EUnit) = crash      -- Unit is not a valid top-level term
-
-topPrec :: Int
-topPrec = 100
-
-unaryPrecedence :: UnaryOp -> Int
-unaryPrecedence OpNegate = 1
-unaryPrecedence OpNot    = 1
-unaryPrecedence OpProjX  = 2
-unaryPrecedence OpProjY  = 2
-unaryPrecedence OpProjZ  = 2
-unaryPrecedence OpProjR  = 2
-unaryPrecedence OpProjG  = 2
-unaryPrecedence OpProjB  = 2
-unaryPrecedence OpProjReal      = 2
-unaryPrecedence OpProjImaginary = 2
-
-binaryPrecedence :: BinaryOp -> Int
-binaryPrecedence OpTimes     = 3
-binaryPrecedence OpDiv       = 3
-binaryPrecedence OpScaleV    = 4
-binaryPrecedence OpScaleC    = 4
-binaryPrecedence OpTimesC    = 4
-binaryPrecedence OpDivC      = 4
-binaryPrecedence OpScaleCol  = 4
-binaryPrecedence OpTimesCol  = 4
-binaryPrecedence OpPlus      = 5
-binaryPrecedence OpPlusV     = 6
-binaryPrecedence OpPlusC     = 6
-binaryPrecedence OpPlusCol   = 6
-binaryPrecedence OpMinus     = 5
-binaryPrecedence OpMinusV    = 6
-binaryPrecedence OpMinusC    = 6
-binaryPrecedence OpMinusCol  = 6
-binaryPrecedence OpLt        = 7
-binaryPrecedence OpLte       = 7
-binaryPrecedence OpGt        = 7
-binaryPrecedence OpGte       = 7
-binaryPrecedence OpEq        = 8
-binaryPrecedence OpNeq       = 8
-binaryPrecedence OpAnd       = 9
-binaryPrecedence OpOr        = 10
-
--- Add parenthesis to an expression to preserve its meaning
--- Ideally, only add parenthesis when needed
-fixPrecedence :: Partial => forall a. Expr a -> Expr a
-fixPrecedence e = fixPrecedence' topPrec e
-
-fixPrecedence' :: Partial => forall a. Int -> Expr a -> Expr a
-fixPrecedence' prec (EVar name) = EVar name
-fixPrecedence' prec (EBool b) = EBool b
-fixPrecedence' prec (ENum n) = ENum n
-fixPrecedence' prec (EVec2 x y) = EVec2 x' y'
-  where
-    x' = fixPrecedence' topPrec x
-    y' = fixPrecedence' topPrec y
-fixPrecedence' prec (EVec3 x y z) = EVec3 x' y' z'
-  where
-    x' = fixPrecedence' topPrec x
-    y' = fixPrecedence' topPrec y
-    z' = fixPrecedence' topPrec z
-fixPrecedence' prec (EComplex r i) = EComplex r' i'
-  where
-    r' = fixPrecedence' topPrec r
-    i' = fixPrecedence' topPrec i
-fixPrecedence' prec (EColor r g b) = EColor r' g' b'
-  where
-    r' = fixPrecedence' topPrec r
-    g' = fixPrecedence' topPrec g
-    b' = fixPrecedence' topPrec b
-fixPrecedence' prec (EUnary op e) = if opPrec < prec then inner else EParen (inner)
-  where
-    opPrec = unaryPrecedence op
-    inner = EUnary op (fixPrecedence' opPrec e)
-fixPrecedence' prec (EBinary op l r) = if opPrec < prec then inner else EParen (inner)
-  where
-    opPrec = binaryPrecedence op
-    inner = EBinary op (fixPrecedence' opPrec l) (fixPrecedence' opPrec r)
-fixPrecedence' prec (EParen e) = EParen (fixPrecedence' topPrec e)
-fixPrecedence' prec (ECall fn args) = ECall fn (fixPrecedence' topPrec <$> args)
-fixPrecedence' prec (EIf i t e) = if ifPrec < prec then inner else EParen (inner)
-  where
-    ifPrec = 11
-    inner = EIf (fixPrecedence' ifPrec i) (fixPrecedence' ifPrec t) (fixPrecedence' ifPrec e)
-fixPrecedence' prec (EBind name ty val body) = EBind name ty (fixPrecedence' topPrec val) body'
-  where
-    body' = fixPrecedence' topPrec body
--- Not handled
-fixPrecedence' prec (ETuple _ _) = crash
-fixPrecedence' prec (EFst _) = crash
-fixPrecedence' prec (ESnd _) = crash
-fixPrecedence' prec (EUnit) = crash
 
 
 eraseType :: forall a b. Expr a -> Expr b
@@ -273,9 +240,6 @@ liftDecl' (EBinary op l r) = do
   l' <- liftDecl' l
   r' <- liftDecl' r
   callCC $ (#) $ EBinary op (eraseType l') (eraseType r')
-liftDecl' (EParen e) = do
-  e' <- liftDecl' e
-  callCC $ (#) $ EParen e'
 liftDecl' (ECall fn args) = do
   args' <- sequence $ liftDecl' <$> args
   callCC $ (#) $ ECall fn (eraseType <$> args')
