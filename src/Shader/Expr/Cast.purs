@@ -1,4 +1,4 @@
-module Shader.Expr.Cast (class Castable, cast, class Destructurable, from) where
+module Shader.Expr.Cast (class Castable, cast, class Destructurable, from, asBoolean, asNumber, asVec2, asVec3, asComplex, asColor) where
 
 import Data.Color (Color)
 import Data.Complex (Complex)
@@ -7,6 +7,7 @@ import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
 import Data.Vec3 (Vec3)
 import Shader.Expr (Expr, bool, fromColor, fromComplex, fromVec2, fromVec3, fst, inl, inr, num, projB, projG, projImaginary, projR, projReal, projX, projY, projZ, snd, tuple)
+import Unsafe.Coerce (unsafeCoerce)
 
 
 class Castable t where
@@ -55,3 +56,22 @@ instance destructurableColor :: Destructurable Color { r :: Expr Number, g :: Ex
 
 instance destructurableTuple :: Destructurable (Tuple a b) (Tuple (Expr a) (Expr b)) where
   from t = Tuple (fst t) (snd t)
+
+
+asBoolean :: forall a. Expr a -> Expr Boolean
+asBoolean = unsafeCoerce
+
+asNumber :: forall a. Expr a -> Expr Number
+asNumber = unsafeCoerce
+
+asVec2 :: forall a. Expr a -> Expr Vec2
+asVec2 = unsafeCoerce
+
+asVec3 :: forall a. Expr a -> Expr Vec3
+asVec3 = unsafeCoerce
+
+asComplex :: forall a. Expr a -> Expr Complex
+asComplex = unsafeCoerce
+
+asColor :: forall a. Expr a -> Expr Color
+asColor = unsafeCoerce

@@ -1,15 +1,15 @@
 module Shader.Expr
   ( Expr(..)
   , Type(..)
-  , UnaryOp(..)
-  , BinaryOp(..)
+  , UnaryExpr(..)
+  , BinaryExpr(..)
+  , CallExpr(..)
   , class TypedExpr
   , class VecExpr
   , class HasX
   , class HasY
   , class HasZ
   , abs
-  , absV
   , atan
   , bindE
   , bool
@@ -23,8 +23,6 @@ module Shader.Expr
   , inr
   , matchE
   , cos
-  , dotC
-  , dotV
   , eq
   , floor
   , fract
@@ -97,50 +95,72 @@ tagLeft = tt
 tagRight :: Tag
 tagRight = ff
 
-data UnaryOp
-  = OpNegate
-  | OpNot
-  | OpProjV2X
-  | OpProjV2Y
-  | OpProjV3X
-  | OpProjV3Y
-  | OpProjV3Z
-  | OpProjReal
-  | OpProjImaginary
-  | OpProjR
-  | OpProjG
-  | OpProjB
+data UnaryExpr t
+  = UnNegate (Expr Number)
+  | UnNot (Expr Boolean)
+  | UnProjV2X (Expr Vec2)
+  | UnProjV2Y (Expr Vec2)
+  | UnProjV3X (Expr Vec3)
+  | UnProjV3Y (Expr Vec3)
+  | UnProjV3Z (Expr Vec3)
+  | UnProjReal (Expr Complex)
+  | UnProjImaginary (Expr Complex)
+  | UnProjR (Expr Color)
+  | UnProjG (Expr Color)
+  | UnProjB (Expr Color)
 
-data BinaryOp
-  = OpEq
-  | OpNeq
-  | OpAnd
-  | OpOr
-  | OpLt
-  | OpLte
-  | OpGt
-  | OpGte
-  | OpPlus
-  | OpMinus
-  | OpTimes
-  | OpDiv
-  | OpPlusV2
-  | OpMinusV2
-  | OpScaleV2
-  | OpPlusV3
-  | OpMinusV3
-  | OpScaleV3
-  | OpPlusC
-  | OpMinusC
-  | OpTimesC
-  | OpDivC
-  | OpScaleC
-  | OpPlusCol
-  | OpMinusCol
-  | OpTimesCol
-  | OpScaleCol
+data BinaryExpr t
+  = BinEq (Expr Number) (Expr Number)
+  | BinNeq (Expr Number) (Expr Number)
+  | BinLt (Expr Number) (Expr Number)
+  | BinLte (Expr Number) (Expr Number)
+  | BinGt (Expr Number) (Expr Number)
+  | BinGte (Expr Number) (Expr Number)
+  | BinAnd (Expr Boolean) (Expr Boolean)
+  | BinOr (Expr Boolean) (Expr Boolean)
+  | BinPlus (Expr Number) (Expr Number)
+  | BinMinus (Expr Number) (Expr Number)
+  | BinTimes (Expr Number) (Expr Number)
+  | BinDiv (Expr Number) (Expr Number)
+  | BinPlusV2 (Expr Vec2) (Expr Vec2)
+  | BinMinusV2 (Expr Vec2) (Expr Vec2)
+  | BinScaleV2 (Expr Number) (Expr Vec2)
+  | BinPlusV3 (Expr Vec3) (Expr Vec3)
+  | BinMinusV3 (Expr Vec3) (Expr Vec3)
+  | BinScaleV3 (Expr Number) (Expr Vec3)
+  | BinPlusC (Expr Complex) (Expr Complex)
+  | BinMinusC (Expr Complex) (Expr Complex)
+  | BinTimesC (Expr Complex) (Expr Complex)
+  | BinDivC (Expr Complex) (Expr Complex)
+  | BinScaleC (Expr Number) (Expr Complex)
+  | BinPlusCol (Expr Color) (Expr Color)
+  | BinMinusCol (Expr Color) (Expr Color)
+  | BinTimesCol (Expr Color) (Expr Color)
+  | BinScaleCol (Expr Number) (Expr Color)
 
--- TODO: add data type for built-in functions (instead of using String for ECall)
+data CallExpr t
+  = FnAbs (Expr Number)
+  | FnCos (Expr Number)
+  | FnFloor (Expr Number)
+  | FnFract (Expr Number)
+  | FnLog (Expr Number)
+  | FnLog2 (Expr Number)
+  | FnSaturate (Expr Number)
+  | FnSin (Expr Number)
+  | FnSqrt (Expr Number)
+  | FnAtan (Expr Number) (Expr Number)
+  | FnMax (Expr Number) (Expr Number)
+  | FnMin (Expr Number) (Expr Number)
+  | FnMod (Expr Number) (Expr Number)
+  | FnSmoothstep (Expr Number) (Expr Number) (Expr Number)
+  | FnLengthV2 (Expr Vec2)
+  | FnLengthV3 (Expr Vec3)
+  | FnDotV2 (Expr Vec2) (Expr Vec2)
+  | FnDotV3 (Expr Vec3) (Expr Vec3)
+  | FnDotC (Expr Complex) (Expr Complex)
+  | FnReflectV2 (Expr Vec2) (Expr Vec2)
+  | FnReflectV3 (Expr Vec3) (Expr Vec3)
+  | FnMix (Expr Color) (Expr Color) (Expr Number)
 
 data Expr t
   = EVar String
@@ -150,13 +170,13 @@ data Expr t
   | EVec3 (Expr Number) (Expr Number) (Expr Number)
   | EComplex (Expr Number) (Expr Number)
   | EColor (Expr Number) (Expr Number) (Expr Number)
-  | EUnary UnaryOp (forall a. Expr a)
-  | EBinary BinaryOp (forall a. Expr a) (forall a. Expr a)
+  | EUnary (UnaryExpr t)
+  | EBinary (BinaryExpr t)
   | EUnit
   | ETuple (forall a. Expr a) (forall a. Expr a)
   | EFst (Expr (forall a. Tuple t a))
   | ESnd (Expr (forall a. Tuple a t))
-  | ECall String (forall a. Array (Expr a))
+  | ECall (CallExpr t)
   | EIf (Expr Boolean) (Expr t) (Expr t)
   | EBind String Type (forall a. Expr a) (Expr t)
 
@@ -185,14 +205,20 @@ instance typedExprExprColor :: TypedExpr Color where
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
 
-unary :: forall a b. UnaryOp -> Expr a -> Expr b
-unary op e = EUnary op (eraseType e)
+unary :: forall a b. (Expr a -> UnaryExpr b) -> Expr a -> Expr b
+unary mkUnary e = EUnary (mkUnary e)
 
-binary :: forall a b c. BinaryOp -> Expr a -> Expr b -> Expr c
-binary op l r = EBinary op (eraseType l) (eraseType r)
+binary :: forall a b c. (Expr a -> Expr b -> BinaryExpr c) -> Expr a -> Expr b -> Expr c
+binary mkBinary e1 e2 = EBinary (mkBinary e1 e2)
 
-call :: forall t. String -> (forall a. Array (Expr a)) -> Expr t
-call fn args = ECall fn args
+call :: forall a b. (Expr a -> CallExpr b) -> Expr a -> Expr b
+call mkCall a = ECall (mkCall a)
+
+call2 :: forall a b c. (Expr a -> Expr b -> CallExpr c) -> Expr a -> Expr b -> Expr c
+call2 mkCall a b = ECall (mkCall a b)
+
+call3 :: forall a b c d. (Expr a -> Expr b -> Expr c -> CallExpr d) -> Expr a -> Expr b -> Expr c -> Expr d
+call3 mkCall a b c = ECall (mkCall a b c)
 
 -------------------------------------------------------------------------------
 -- Smart constructors
@@ -282,7 +308,9 @@ class
   ( TypedExpr v
   , VectorSpace (Expr Number) (Expr v)
   , InnerSpace (Expr Number) (Expr v)
-  ) <= VecExpr v
+  ) <= VecExpr v where
+  length :: Expr v -> Expr Number
+  reflect :: Expr v -> Expr v -> Expr v
 
 class (VecExpr t) <= HasX t where
   projX :: Expr t -> Expr Number
@@ -293,123 +321,134 @@ class (VecExpr t) <= HasY t where
 class (VecExpr t) <= HasZ t where
   projZ :: Expr t -> Expr Number
 
-instance vecExprVec2 :: VecExpr Vec2
-instance vecExprVec3 :: VecExpr Vec3
+instance vecExprVec2 :: VecExpr Vec2 where
+  length = lengthV2
+  reflect = reflectV2
+
+instance vecExprVec3 :: VecExpr Vec3 where
+  length = lengthV3
+  reflect = reflectV3
 
 instance hasXVec2 :: HasX Vec2 where
-  projX v = unary OpProjV2X v
+  projX = unary UnProjV2X
 
 instance hasYVec2 :: HasY Vec2 where
-  projY v = unary OpProjV2Y v
+  projY = unary UnProjV2Y
 
 instance hasXVec3 :: HasX Vec3 where
-  projX v = unary OpProjV3X v
+  projX = unary UnProjV3X
   
 instance hasYVec3 :: HasY Vec3 where
-  projY v = unary OpProjV3Y v
+  projY = unary UnProjV3Y
   
 instance hasZVec3 :: HasZ Vec3 where
-  projZ v = unary OpProjV3Z v
+  projZ = unary UnProjV3Z
   
 
 projReal :: Expr Complex -> Expr Number
-projReal c = unary OpProjReal c
+projReal = unary UnProjReal
 
 projImaginary :: Expr Complex -> Expr Number
-projImaginary c = unary OpProjImaginary c
+projImaginary = unary UnProjImaginary
 
 projR :: Expr Color -> Expr Number
-projR c = unary OpProjR c
+projR = unary UnProjR
 
 projG :: Expr Color -> Expr Number
-projG c = unary OpProjG c
+projG = unary UnProjG
 
 projB :: Expr Color -> Expr Number
-projB c = unary OpProjB c
+projB = unary UnProjB
 
 
 -- Built-in functions
 -- Boolean functions
 lt :: Expr Number -> Expr Number -> Expr Boolean
-lt = binary OpLt
+lt = binary BinLt
 
 lte :: Expr Number -> Expr Number -> Expr Boolean
-lte = binary OpLte
+lte = binary BinLte
 
 gt :: Expr Number -> Expr Number -> Expr Boolean
-gt = binary OpGt
+gt = binary BinGt
 
 gte :: Expr Number -> Expr Number -> Expr Boolean
-gte = binary OpGte
+gte = binary BinGte
 
 eq :: Expr Number -> Expr Number -> Expr Boolean
-eq = binary OpEq
+eq = binary BinEq
 
 neq :: Expr Number -> Expr Number -> Expr Boolean
-neq = binary OpNeq
+neq = binary BinNeq
 
 -- Scalar functions
 abs :: Expr Number -> Expr Number
-abs n = call "abs" [ eraseType n ]
+abs = call FnAbs
 
 cos :: Expr Number -> Expr Number
-cos n = call "cos" [ eraseType n ]
+cos = call FnCos
 
 floor :: Expr Number -> Expr Number
-floor n = call "floor" [ eraseType n ]
+floor = call FnFloor
 
 fract :: Expr Number -> Expr Number
-fract n = call "fract" [ eraseType n ]
+fract = call FnFract
 
 log :: Expr Number -> Expr Number
-log n = call "log" [ eraseType n ]
+log = call FnLog
 
 log2 :: Expr Number -> Expr Number
-log2 n = call "log2" [ eraseType n ]
+log2 = call FnLog2
 
 saturate :: Expr Number -> Expr Number
-saturate n = call "saturate" [ eraseType n ]
+saturate = call FnSaturate
 
 sin :: Expr Number -> Expr Number
-sin n = call "sin" [ eraseType n ]
+sin = call FnSin
 
 sqrt :: Expr Number -> Expr Number
-sqrt n = call "sqrt" [ eraseType n ]
+sqrt = call FnSqrt
 
 atan :: Expr Number -> Expr Number -> Expr Number
-atan y x = call "atan" [ eraseType y, eraseType x ]
+atan = call2 FnAtan
 
 max :: Expr Number -> Expr Number -> Expr Number
-max x y = call "max" [ eraseType x, eraseType y ]
+max = call2 FnMax
 
 min :: Expr Number -> Expr Number -> Expr Number
-min x y = call "min" [ eraseType x, eraseType y ]
+min = call2 FnMin
 
 mod :: Expr Number -> Expr Number -> Expr Number
-mod x y = call "mod" [ eraseType x, eraseType y ]
+mod = call2 FnMod
 
 smoothstep :: Expr Number -> Expr Number -> Expr Number -> Expr Number
-smoothstep lo hi x = call "smoothstep" [ eraseType lo, eraseType hi, eraseType x ]
+smoothstep = call3 FnSmoothstep
 
 -- Vector functions
-absV :: forall v. VecExpr v => Expr v -> Expr v
-absV v = call "abs" [ eraseType v ]
+lengthV2 :: Expr Vec2 -> Expr Number
+lengthV2 = call FnLengthV2
 
-length :: forall v. VecExpr v => Expr v -> Expr Number
-length v = call "length" [ eraseType v ]
+lengthV3 :: Expr Vec3 -> Expr Number
+lengthV3 = call FnLengthV3
 
-dotV :: forall v. VecExpr v => Expr v -> Expr v -> Expr Number
-dotV u v = call "dot" [ eraseType u, eraseType v ]
+reflectV2 :: Expr Vec2 -> Expr Vec2 -> Expr Vec2
+reflectV2 = call2 FnReflectV2
+
+reflectV3 :: Expr Vec3 -> Expr Vec3 -> Expr Vec3
+reflectV3 = call2 FnReflectV3
+
+dotV2 :: Expr Vec2 -> Expr Vec2 -> Expr Number
+dotV2 = call2 FnDotV2
+
+dotV3 :: Expr Vec3 -> Expr Vec3 -> Expr Number
+dotV3  = call2 FnDotV3
 
 dotC :: Expr Complex -> Expr Complex -> Expr Number
-dotC u v = call "dot" [ eraseType u, eraseType v ]
-
-reflect :: forall v. VecExpr v => Expr v -> Expr v -> Expr v
-reflect u v = call "reflect" [ eraseType u, eraseType v ]
+dotC  = call2 FnDotC
 
 -- Color functions
 mix :: Expr Color -> Expr Color -> Expr Number -> Expr Color
-mix c1 c2 fac = call "mix" [ eraseType c1, eraseType c2, eraseType fac ]
+mix = call3 FnMix
 
 
 -- Useful Instances
@@ -417,9 +456,9 @@ mix c1 c2 fac = call "mix" [ eraseType c1, eraseType c2, eraseType fac ]
 instance heytingAlgebraExprBool :: HeytingAlgebra (Expr Boolean) where
   ff = bool false
   tt = bool true
-  disj = binary OpOr
-  conj = binary OpAnd
-  not = unary OpNot
+  disj = binary BinOr
+  conj = binary BinAnd
+  not = unary UnNot
   implies a b = b || (not a)
 
 instance booleanAlgebraExprBool :: BooleanAlgebra (Expr Boolean)
@@ -429,16 +468,16 @@ instance booleanAlgebraExprBool :: BooleanAlgebra (Expr Boolean)
 instance semiringExprNumber :: Semiring (Expr Number) where
   zero = num zero
   one = num one
-  add = binary OpPlus
-  mul = binary OpTimes
+  add = binary BinPlus
+  mul = binary BinTimes
 
 instance ringExprNumber :: Ring (Expr Number) where
-  sub = binary OpMinus
+  sub = binary BinMinus
 
 instance commutativeRingExprNumber :: CommutativeRing (Expr Number)
 
 instance euclideanRingExprNumber :: EuclideanRing (Expr Number) where
-  div = binary OpDiv
+  div = binary BinDiv
   degree _ = 1
   mod _ _ = num zero -- A proper lawful definition, but not a useful one for shader programming
 
@@ -449,7 +488,7 @@ instance additevGroupExprNumber :: AdditiveGroup (Expr Number) where
   zeroV = zero
   addV = add
   subV = sub
-  negateV = unary OpNegate
+  negateV = unary UnNegate
 
 instance vectorSpaceExprNumber :: VectorSpace (Expr Number) (Expr Number) where
   scale = mul
@@ -462,18 +501,18 @@ instance innerSpaceExprNumber :: InnerSpace (Expr Number) (Expr Number) where
 instance semiringExprComplex :: Semiring (Expr Complex) where
   zero = fromComplex zero
   one = fromComplex one
-  add = binary OpPlusC
-  mul = binary OpTimesC
+  add = binary BinPlusC
+  mul = binary BinTimesC
 
 instance ringExprComplex :: Ring (Expr Complex) where
-  sub = binary OpMinusC
+  sub = binary BinMinusC
 
 instance commutativeRingExprComplex :: CommutativeRing (Expr Complex)
 
 instance euclideanRingExprComplex :: EuclideanRing (Expr Complex) where
   degree _ = 1
   mod _ _ = fromComplex zero -- A proper lawful definition, but not a useful one for shader programming
-  div = binary OpDivC
+  div = binary BinDivC
 
 instance divisionRingExprComplex :: DivisionRing (Expr Complex) where
   recip e = one / e
@@ -482,10 +521,10 @@ instance additiveGroupExprComplex :: AdditiveGroup (Expr Complex) where
   zeroV = zero
   addV = add
   subV = sub
-  negateV = binary OpScaleC (num (-1.0))
+  negateV = binary BinScaleC (num (-1.0))
 
 instance vectorSpaceExprComplex :: VectorSpace (Expr Number) (Expr Complex) where
-  scale = binary OpScaleC
+  scale = binary BinScaleC
 
 instance innerSpaceExprComplex :: InnerSpace (Expr Number) (Expr Complex) where
   dot = dotC
@@ -494,49 +533,49 @@ instance innerSpaceExprComplex :: InnerSpace (Expr Number) (Expr Complex) where
 -- Vec2
 instance additiveGroupExprVec2 :: AdditiveGroup (Expr Vec2) where
   zeroV = fromVec2 zeroV
-  addV = binary OpPlusV2
-  subV = binary OpMinusV2
-  negateV = binary OpScaleV2 (num (-1.0))
+  addV = binary BinPlusV2
+  subV = binary BinMinusV2
+  negateV = binary BinScaleV2 (num (-1.0))
 
 instance vectorSpaceExprVec2 :: VectorSpace (Expr Number) (Expr Vec2) where
-  scale = binary OpScaleV2
+  scale = binary BinScaleV2
 
 instance innerSpaceExprVec2 :: InnerSpace (Expr Number) (Expr Vec2) where
-  dot = dotV
+  dot = dotV2
 
 
 -- Vec3
 instance additiveGroupExprVec3 :: AdditiveGroup (Expr Vec3) where
   zeroV = fromVec3 zeroV
-  addV = binary OpPlusV3
-  subV = binary OpMinusV3
-  negateV = binary OpScaleV3 (num (-1.0))
+  addV = binary BinPlusV3
+  subV = binary BinMinusV3
+  negateV = binary BinScaleV3 (num (-1.0))
 
 instance vectorSpaceExprVec3 :: VectorSpace (Expr Number) (Expr Vec3) where
-  scale = binary OpScaleV3
+  scale = binary BinScaleV3
 
 instance innerSpaceExprVec3 :: InnerSpace (Expr Number) (Expr Vec3) where
-  dot = dotV
+  dot = dotV3
 
 
 -- Color
 instance semiringExprColor :: Semiring (Expr Color) where
   zero = fromColor zero
   one = fromColor one
-  add = binary OpPlusCol
-  mul = binary OpTimesCol
+  add = binary BinPlusCol
+  mul = binary BinTimesCol
 
 instance ringExprColor :: Ring (Expr Color) where
-  sub = binary OpMinusCol
+  sub = binary BinMinusCol
 
 instance additiveGroupExprColor :: AdditiveGroup (Expr Color) where
   zeroV = fromColor zeroV
-  addV = binary OpPlusCol
-  subV = binary OpMinusCol
-  negateV = binary OpScaleCol (num (-1.0))
+  addV = binary BinPlusCol
+  subV = binary BinMinusCol
+  negateV = binary BinScaleCol (num (-1.0))
 
 instance vectorSpaceExprColor :: VectorSpace (Expr Number) (Expr Color) where
-  scale = binary OpScaleCol
+  scale = binary BinScaleCol
 
 -- Tuple
 instance semiringExprTuple :: (Semiring (Expr a), Semiring (Expr b)) => Semiring (Expr (Tuple a b)) where

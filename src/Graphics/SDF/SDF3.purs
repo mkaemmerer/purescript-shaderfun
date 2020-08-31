@@ -9,7 +9,7 @@ import Prelude hiding (min,max)
 import Data.Vec3 (Vec3)
 import Data.VectorSpace ((^-^))
 import Graphics.SDF (circle)
-import Shader.Expr (absV, length, max, min, vec3)
+import Shader.Expr (Expr, abs, length, max, min, projX, projY, projZ, vec3)
 import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (type (|>), decl)
 
@@ -29,3 +29,6 @@ box corner p = do
   c <- decl $ vec3 (max d'.x zero) (max d'.y zero) (max d'.z zero)
   m <- decl $ (min (max d'.x (max d'.y d'.z)) zero)
   pure $ (length c) + m
+
+absV :: Expr Vec3 -> Expr Vec3
+absV v = vec3 (abs $ projX v) (abs $ projY v) (abs $ projZ v)

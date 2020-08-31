@@ -15,6 +15,7 @@ module Data.VectorSpace
   , sumV
   , averageV
   , magnitudeSquared
+  , magnitude
   , (^+^)
   , (^-^)
   , (<.>)
@@ -27,6 +28,7 @@ import Prelude
 
 import Data.Foldable (class Foldable, foldl, sum)
 import Data.Tuple (Tuple(..), fst, snd)
+import Math (sqrt)
 
 -- | The `AdditiveGroup` type class is isomorphic to Group,
 -- | but useful when we want to specify the (+, 0, negate) group,
@@ -98,6 +100,9 @@ infixr 7 divV as ^/
 
 magnitudeSquared :: forall v s. InnerSpace s v => v -> s
 magnitudeSquared v = v <.> v
+
+magnitude :: forall v. InnerSpace Number v => v -> Number
+magnitude = magnitudeSquared >>> sqrt 
 
 -- Number instance
 instance additiveGroupNumber :: AdditiveGroup Number where

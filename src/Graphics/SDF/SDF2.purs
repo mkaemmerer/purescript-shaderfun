@@ -17,7 +17,7 @@ import Data.VectorSpace ((<.>), (^-^))
 import Graphics.DomainTransform (repeatLogPolar)
 import Graphics.SDF (projectSegment)
 import Math (tau)
-import Shader.Expr (absV, gt, gte, ifE, length, lt, max, min, num, projY, sqrt, vec2)
+import Shader.Expr (Expr, abs, gt, gte, ifE, length, lt, max, min, num, projX, projY, sqrt, vec2)
 import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (type (|>), decl)
 
@@ -45,6 +45,9 @@ box corner p = do
   c <- decl $ vec2 (max d'.x zero) (max d'.y zero)
   m <- decl $ (min (max d'.x d'.y) zero)
   pure $ (length c) + m
+
+absV :: Expr Vec2 -> Expr Vec2
+absV v = vec2 (abs $ projX v) (abs $ projY v)
 
 -- | A polygon, given by an array of points. Well defined on arrays with at least 3 elements.
 polygon :: Partial => Array Vec2 -> SDF2
