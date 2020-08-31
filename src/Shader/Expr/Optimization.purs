@@ -14,6 +14,7 @@ import Data.VectorSpace (magnitude, (*^), (^+^), (^-^), (<.>))
 import Math (atan2, cos, log, log2e, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
 import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asVec2, asVec3, cast)
+import Shader.Expr.Traversal (overBinary, overCall, overUnary)
 import Unsafe.Coerce (unsafeCoerce)
 
 foldWithDefault :: forall a. ConstantFold a => Expr a -> Expr a
@@ -36,72 +37,36 @@ constantFold (EBinary e) = foldWithDefault (EBinary $ constantFoldBinary e)
 constantFold (ECall e)   = foldWithDefault (ECall $ constantFoldCall e)
 constantFold e = foldWithDefault e
 
+
 constantFoldUnary :: forall a. ConstantFold a => UnaryExpr a -> UnaryExpr a
-constantFoldUnary (UnNegate e)        = UnNegate        (constantFold e)
-constantFoldUnary (UnNot e)           = UnNot           (constantFold e)
-constantFoldUnary (UnProjV2X e)       = UnProjV2X       (constantFold e)
-constantFoldUnary (UnProjV2Y e)       = UnProjV2Y       (constantFold e)
-constantFoldUnary (UnProjV3X e)       = UnProjV3X       (constantFold e)
-constantFoldUnary (UnProjV3Y e)       = UnProjV3Y       (constantFold e)
-constantFoldUnary (UnProjV3Z e)       = UnProjV3Z       (constantFold e)
-constantFoldUnary (UnProjReal e)      = UnProjReal      (constantFold e)
-constantFoldUnary (UnProjImaginary e) = UnProjImaginary (constantFold e)
-constantFoldUnary (UnProjR e)         = UnProjR         (constantFold e)
-constantFoldUnary (UnProjG e)         = UnProjG         (constantFold e)
-constantFoldUnary (UnProjB e)         = UnProjB         (constantFold e)
+constantFoldUnary = overUnary {
+  onBool: constantFold,
+  onNum: constantFold,
+  onVec2: constantFold,
+  onVec3: constantFold,
+  onComplex: constantFold,
+  onColor: constantFold
+}
 
 constantFoldBinary :: forall a. ConstantFold a => BinaryExpr a -> BinaryExpr a
-constantFoldBinary (BinEq e1 e2)       = BinEq       (constantFold e1) (constantFold e2)
-constantFoldBinary (BinNeq e1 e2)      = BinNeq      (constantFold e1) (constantFold e2)
-constantFoldBinary (BinLt e1 e2)       = BinLt       (constantFold e1) (constantFold e2)
-constantFoldBinary (BinLte e1 e2)      = BinLte      (constantFold e1) (constantFold e2)
-constantFoldBinary (BinGt e1 e2)       = BinGt       (constantFold e1) (constantFold e2)
-constantFoldBinary (BinGte e1 e2)      = BinGte      (constantFold e1) (constantFold e2)
-constantFoldBinary (BinAnd e1 e2)      = BinAnd      (constantFold e1) (constantFold e2)
-constantFoldBinary (BinOr e1 e2)       = BinOr       (constantFold e1) (constantFold e2)
-constantFoldBinary (BinPlus e1 e2)     = BinPlus     (constantFold e1) (constantFold e2)
-constantFoldBinary (BinMinus e1 e2)    = BinMinus    (constantFold e1) (constantFold e2)
-constantFoldBinary (BinTimes e1 e2)    = BinTimes    (constantFold e1) (constantFold e2)
-constantFoldBinary (BinDiv e1 e2)      = BinDiv      (constantFold e1) (constantFold e2)
-constantFoldBinary (BinPlusV2 e1 e2)   = BinPlusV2   (constantFold e1) (constantFold e2)
-constantFoldBinary (BinMinusV2 e1 e2)  = BinMinusV2  (constantFold e1) (constantFold e2)
-constantFoldBinary (BinScaleV2 e1 e2)  = BinScaleV2  (constantFold e1) (constantFold e2)
-constantFoldBinary (BinPlusV3 e1 e2)   = BinPlusV3   (constantFold e1) (constantFold e2)
-constantFoldBinary (BinMinusV3 e1 e2)  = BinMinusV3  (constantFold e1) (constantFold e2)
-constantFoldBinary (BinScaleV3 e1 e2)  = BinScaleV3  (constantFold e1) (constantFold e2)
-constantFoldBinary (BinPlusC e1 e2)    = BinPlusC    (constantFold e1) (constantFold e2)
-constantFoldBinary (BinMinusC e1 e2)   = BinMinusC   (constantFold e1) (constantFold e2)
-constantFoldBinary (BinTimesC e1 e2)   = BinTimesC   (constantFold e1) (constantFold e2)
-constantFoldBinary (BinDivC e1 e2)     = BinDivC     (constantFold e1) (constantFold e2)
-constantFoldBinary (BinScaleC e1 e2)   = BinScaleC   (constantFold e1) (constantFold e2)
-constantFoldBinary (BinPlusCol e1 e2)  = BinPlusCol  (constantFold e1) (constantFold e2)
-constantFoldBinary (BinMinusCol e1 e2) = BinMinusCol (constantFold e1) (constantFold e2)
-constantFoldBinary (BinTimesCol e1 e2) = BinTimesCol (constantFold e1) (constantFold e2)
-constantFoldBinary (BinScaleCol e1 e2) = BinScaleCol (constantFold e1) (constantFold e2)
+constantFoldBinary = overBinary {
+  onBool: constantFold,
+  onNum: constantFold,
+  onVec2: constantFold,
+  onVec3: constantFold,
+  onComplex: constantFold,
+  onColor: constantFold
+}
 
 constantFoldCall :: forall a. ConstantFold a => CallExpr a -> CallExpr a
-constantFoldCall (FnAbs e)               = FnAbs        (constantFold e)
-constantFoldCall (FnCos e)               = FnCos        (constantFold e)
-constantFoldCall (FnFloor e)             = FnFloor      (constantFold e)
-constantFoldCall (FnFract e)             = FnFract      (constantFold e)
-constantFoldCall (FnLog e)               = FnLog        (constantFold e)
-constantFoldCall (FnLog2 e)              = FnLog2       (constantFold e)
-constantFoldCall (FnSaturate e)          = FnSaturate   (constantFold e)
-constantFoldCall (FnSin e)               = FnSin        (constantFold e)
-constantFoldCall (FnSqrt e)              = FnSqrt       (constantFold e)
-constantFoldCall (FnAtan e1 e2)          = FnAtan       (constantFold e1) (constantFold e2)
-constantFoldCall (FnMax e1 e2)           = FnMax        (constantFold e1) (constantFold e2)
-constantFoldCall (FnMin e1 e2)           = FnMin        (constantFold e1) (constantFold e2)
-constantFoldCall (FnMod e1 e2)           = FnMod        (constantFold e1) (constantFold e2)
-constantFoldCall (FnSmoothstep e1 e2 e3) = FnSmoothstep (constantFold e1) (constantFold e2) (constantFold e3)
-constantFoldCall (FnLengthV2 e)          = FnLengthV2   (constantFold e)
-constantFoldCall (FnLengthV3 e)          = FnLengthV3   (constantFold e)
-constantFoldCall (FnDotV2 e1 e2)         = FnDotV2      (constantFold e1) (constantFold e2)
-constantFoldCall (FnDotV3 e1 e2)         = FnDotV3      (constantFold e1) (constantFold e2)
-constantFoldCall (FnDotC e1 e2)          = FnDotC       (constantFold e1) (constantFold e2)
-constantFoldCall (FnReflectV2 e1 e2)     = FnReflectV2  (constantFold e1) (constantFold e2)
-constantFoldCall (FnReflectV3 e1 e2)     = FnReflectV3  (constantFold e1) (constantFold e2)
-constantFoldCall (FnMix e1 e2 e3)        = FnMix        (constantFold e1) (constantFold e2) (constantFold e3)
+constantFoldCall = overCall {
+  onBool: constantFold,
+  onNum: constantFold,
+  onVec2: constantFold,
+  onVec3: constantFold,
+  onComplex: constantFold,
+  onColor: constantFold
+}
 
 class ConstantFold t where
   toConst :: Expr t -> Maybe t
