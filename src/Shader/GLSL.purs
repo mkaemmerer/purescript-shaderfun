@@ -9,11 +9,12 @@ import Data.Tuple (Tuple(..))
 import Partial (crash)
 import Partial.Unsafe (unsafePartial)
 import Shader.Expr (class TypedExpr, BinaryOp(..), Expr(..), Type(..), UnaryOp(..), complex, projImaginary, projReal)
+import Shader.Expr.Optimization (constantFold)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Convert an expression to GLSL code
 toGLSL :: forall a. TypedExpr a => Expr a -> String
-toGLSL = unsafePartial $ normalize >>> printExpr
+toGLSL = unsafePartial $ normalize >>> optimize >>> printExpr
 
 printList :: Array String -> String
 printList = intercalate ", "
@@ -76,8 +77,11 @@ printUnary p op e = if p < opPrec
     opPrec = unaryPrec op
     printUnaryOp OpNegate         str = "-" <> str
     printUnaryOp OpNot            str = "!" <> str
-    printUnaryOp OpProjX          str = str <> ".x"
-    printUnaryOp OpProjY          str = str <> ".y"
+    printUnaryOp OpProjV2X        str = str <> ".x"
+    printUnaryOp OpProjV2Y        str = str <> ".y"
+    printUnaryOp OpProjV3X        str = str <> ".x"
+    printUnaryOp OpProjV3Y        str = str <> ".y"
+    printUnaryOp OpProjV3Z        str = str <> ".z"
     printUnaryOp OpProjR          str = str <> ".r"
     printUnaryOp OpProjG          str = str <> ".g"
     printUnaryOp OpProjB          str = str <> ".b"
@@ -103,9 +107,12 @@ printBinary p op l r = if p < opPrec
     printBinaryOp OpMinus     = "-"
     printBinaryOp OpTimes     = "*"
     printBinaryOp OpDiv       = "/"
-    printBinaryOp OpPlusV     = "+"
-    printBinaryOp OpMinusV    = "-"
-    printBinaryOp OpScaleV    = "*"
+    printBinaryOp OpPlusV2    = "+"
+    printBinaryOp OpMinusV2   = "-"
+    printBinaryOp OpScaleV2   = "*"
+    printBinaryOp OpPlusV3    = "+"
+    printBinaryOp OpMinusV3   = "-"
+    printBinaryOp OpScaleV3   = "*"
     printBinaryOp OpPlusC     = "+"
     printBinaryOp OpMinusC    = "-"
     printBinaryOp OpScaleC    = "*"
@@ -120,32 +127,37 @@ topPrec :: Int
 topPrec = 100
 
 unaryPrec :: UnaryOp -> Int
-unaryPrec OpNegate = 1
-unaryPrec OpNot    = 1
-unaryPrec OpProjX  = 2
-unaryPrec OpProjY  = 2
-unaryPrec OpProjZ  = 2
-unaryPrec OpProjR  = 2
-unaryPrec OpProjG  = 2
-unaryPrec OpProjB  = 2
+unaryPrec OpNegate   = 1
+unaryPrec OpNot      = 1
+unaryPrec OpProjV2X  = 2
+unaryPrec OpProjV2Y  = 2
+unaryPrec OpProjV3X  = 2
+unaryPrec OpProjV3Y  = 2
+unaryPrec OpProjV3Z  = 2
+unaryPrec OpProjR    = 2
+unaryPrec OpProjG    = 2
+unaryPrec OpProjB    = 2
 unaryPrec OpProjReal      = 2
 unaryPrec OpProjImaginary = 2
 
 binaryPrec :: BinaryOp -> Int
 binaryPrec OpTimes     = 3
 binaryPrec OpDiv       = 3
-binaryPrec OpScaleV    = 4
+binaryPrec OpScaleV2   = 4
+binaryPrec OpScaleV3   = 4
 binaryPrec OpScaleC    = 4
 binaryPrec OpTimesC    = 4
 binaryPrec OpDivC      = 4
 binaryPrec OpScaleCol  = 4
 binaryPrec OpTimesCol  = 4
 binaryPrec OpPlus      = 5
-binaryPrec OpPlusV     = 6
+binaryPrec OpPlusV2    = 6
+binaryPrec OpPlusV3    = 6
 binaryPrec OpPlusC     = 6
 binaryPrec OpPlusCol   = 6
 binaryPrec OpMinus     = 5
-binaryPrec OpMinusV    = 6
+binaryPrec OpMinusV2   = 6
+binaryPrec OpMinusV3   = 6
 binaryPrec OpMinusC    = 6
 binaryPrec OpMinusCol  = 6
 binaryPrec OpLt        = 7
@@ -256,3 +268,7 @@ liftDecl' (ETuple _ _) = crash
 liftDecl' (EFst _) = crash
 liftDecl' (ESnd _) = crash
 liftDecl' (EUnit) = crash
+
+-- Optimizations
+optimize :: forall a. Expr a -> Expr a
+optimize = constantFold

@@ -28,6 +28,8 @@ module Shader.Expr
   , eq
   , floor
   , fract
+  , fromBoolean
+  , fromNumber
   , fromColor
   , fromComplex
   , fromVec2
@@ -98,9 +100,11 @@ tagRight = ff
 data UnaryOp
   = OpNegate
   | OpNot
-  | OpProjX
-  | OpProjY
-  | OpProjZ
+  | OpProjV2X
+  | OpProjV2Y
+  | OpProjV3X
+  | OpProjV3Y
+  | OpProjV3Z
   | OpProjReal
   | OpProjImaginary
   | OpProjR
@@ -120,9 +124,12 @@ data BinaryOp
   | OpMinus
   | OpTimes
   | OpDiv
-  | OpPlusV
-  | OpMinusV
-  | OpScaleV
+  | OpPlusV2
+  | OpMinusV2
+  | OpScaleV2
+  | OpPlusV3
+  | OpMinusV3
+  | OpScaleV3
   | OpPlusC
   | OpMinusC
   | OpTimesC
@@ -132,6 +139,8 @@ data BinaryOp
   | OpMinusCol
   | OpTimesCol
   | OpScaleCol
+
+-- TODO: add data type for built-in functions (instead of using String for ECall)
 
 data Expr t
   = EVar String
@@ -150,7 +159,6 @@ data Expr t
   | ECall String (forall a. Array (Expr a))
   | EIf (Expr Boolean) (Expr t) (Expr t)
   | EBind String Type (forall a. Expr a) (Expr t)
-
 
 class TypedExpr a where
   typeof :: (Expr a) -> Type
@@ -242,6 +250,12 @@ ifE i t e = EIf i t e
 bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
 bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
 
+fromBoolean :: Boolean -> Expr Boolean
+fromBoolean = bool
+
+fromNumber :: Number -> Expr Number
+fromNumber = num
+
 fromVec2 :: Vec2 -> Expr Vec2
 fromVec2 (Vec2 v) = vec2 (num v.x) (num v.y)
 
@@ -269,26 +283,34 @@ class
   , VectorSpace (Expr Number) (Expr v)
   , InnerSpace (Expr Number) (Expr v)
   ) <= VecExpr v
-class (VecExpr t) <= HasX t
-class (VecExpr t) <= HasY t
-class (VecExpr t) <= HasZ t
+
+class (VecExpr t) <= HasX t where
+  projX :: Expr t -> Expr Number
+
+class (VecExpr t) <= HasY t where
+  projY :: Expr t -> Expr Number
+
+class (VecExpr t) <= HasZ t where
+  projZ :: Expr t -> Expr Number
 
 instance vecExprVec2 :: VecExpr Vec2
 instance vecExprVec3 :: VecExpr Vec3
-instance hasXVec2 :: HasX Vec2
-instance hasYVec2 :: HasY Vec2
-instance hasXVec3 :: HasX Vec3
-instance hasYVec3 :: HasY Vec3
-instance hasZVec3 :: HasZ Vec3
 
-projX :: forall vec. (HasX vec) => Expr vec -> Expr Number
-projX v = unary OpProjX v
+instance hasXVec2 :: HasX Vec2 where
+  projX v = unary OpProjV2X v
 
-projY :: forall vec. (HasY vec) => Expr vec -> Expr Number
-projY v = unary OpProjY v
+instance hasYVec2 :: HasY Vec2 where
+  projY v = unary OpProjV2Y v
 
-projZ :: forall vec. (HasZ vec) => Expr vec -> Expr Number
-projZ v = unary OpProjZ v
+instance hasXVec3 :: HasX Vec3 where
+  projX v = unary OpProjV3X v
+  
+instance hasYVec3 :: HasY Vec3 where
+  projY v = unary OpProjV3Y v
+  
+instance hasZVec3 :: HasZ Vec3 where
+  projZ v = unary OpProjV3Z v
+  
 
 projReal :: Expr Complex -> Expr Number
 projReal c = unary OpProjReal c
@@ -472,12 +494,12 @@ instance innerSpaceExprComplex :: InnerSpace (Expr Number) (Expr Complex) where
 -- Vec2
 instance additiveGroupExprVec2 :: AdditiveGroup (Expr Vec2) where
   zeroV = fromVec2 zeroV
-  addV = binary OpPlusV
-  subV = binary OpMinusV
-  negateV = binary OpScaleV (num (-1.0))
+  addV = binary OpPlusV2
+  subV = binary OpMinusV2
+  negateV = binary OpScaleV2 (num (-1.0))
 
 instance vectorSpaceExprVec2 :: VectorSpace (Expr Number) (Expr Vec2) where
-  scale = binary OpScaleV
+  scale = binary OpScaleV2
 
 instance innerSpaceExprVec2 :: InnerSpace (Expr Number) (Expr Vec2) where
   dot = dotV
@@ -486,12 +508,12 @@ instance innerSpaceExprVec2 :: InnerSpace (Expr Number) (Expr Vec2) where
 -- Vec3
 instance additiveGroupExprVec3 :: AdditiveGroup (Expr Vec3) where
   zeroV = fromVec3 zeroV
-  addV = binary OpPlusV
-  subV = binary OpMinusV
-  negateV = binary OpScaleV (num (-1.0))
+  addV = binary OpPlusV3
+  subV = binary OpMinusV3
+  negateV = binary OpScaleV3 (num (-1.0))
 
 instance vectorSpaceExprVec3 :: VectorSpace (Expr Number) (Expr Vec3) where
-  scale = binary OpScaleV
+  scale = binary OpScaleV3
 
 instance innerSpaceExprVec3 :: InnerSpace (Expr Number) (Expr Vec3) where
   dot = dotV
