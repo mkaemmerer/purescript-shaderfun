@@ -8,7 +8,7 @@ import Partial (crash)
 import Partial.Unsafe (unsafePartial)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
 import Shader.Expr.Normalization (normalize)
-import Shader.Expr.Optimization (class ConstantFold, constantFold)
+import Shader.Expr.Optimization (class ConstantFold, constantFold, class IdentityFold, identityFold)
 import Shader.Expr.Traversal (exl, exr, ex)
 
 -- | Convert an expression to GLSL code
@@ -197,5 +197,5 @@ ifPrec :: Int
 ifPrec = 11
 
 -- Optimizations
-optimize :: forall a. ConstantFold a => Expr a -> Expr a
-optimize = constantFold
+optimize :: forall a. (ConstantFold a) => (IdentityFold a) => Expr a -> Expr a
+optimize = constantFold >>> identityFold

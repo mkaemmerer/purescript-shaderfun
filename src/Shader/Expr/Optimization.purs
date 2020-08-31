@@ -1,24 +1,27 @@
-module Shader.Expr.Optimization (class ConstantFold, toConst, cFold, constantFold) where
+module Shader.Expr.Optimization (class ConstantFold, toConst, cFold, constantFold, class IdentityFold, iFoldL, iFoldR, identityFold) where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Data.Color (Color(..))
 import Data.Complex (Complex(..))
+import Data.HeytingAlgebra (ff, tt)
 import Data.Int (floor, toNumber)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Ord (abs)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Vec2 (Vec2(..))
 import Data.Vec3 (Vec3(..))
-import Data.VectorSpace (magnitude, (*^), (^+^), (^-^), (<.>))
+import Data.VectorSpace (magnitude, zeroV, (*^), (<.>), (^+^), (^-^))
 import Math (atan2, cos, log, log2e, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
 import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asVec2, asVec3, cast)
 import Shader.Expr.Traversal (overBinary, overCall, overUnary)
 import Unsafe.Coerce (unsafeCoerce)
 
-foldWithDefault :: forall a. ConstantFold a => Expr a -> Expr a
-foldWithDefault e = maybe e identity (cFold e)
+-------------------------------------------------------------------------------
+-- Constant Folding
+-------------------------------------------------------------------------------
 
 constantFold :: forall a. ConstantFold a => Expr a -> Expr a
 constantFold (EBind name ty val body) = EBind name ty (eraseType val') body'
@@ -32,11 +35,14 @@ constantFold (EBind name ty val body) = EBind name ty (eraseType val') body'
       TComplex -> eraseType $ constantFold $ asComplex val
       TColor   -> eraseType $ constantFold $ asColor val
     body' = constantFold body
-constantFold (EUnary e)  = foldWithDefault (EUnary $ constantFoldUnary e)
-constantFold (EBinary e) = foldWithDefault (EBinary $ constantFoldBinary e)
-constantFold (ECall e)   = foldWithDefault (ECall $ constantFoldCall e)
-constantFold e = foldWithDefault e
+constantFold (EUnary e)  = cFoldWithDefault (EUnary $ constantFoldUnary e)
+constantFold (EBinary e) = cFoldWithDefault (EBinary $ constantFoldBinary e)
+constantFold (ECall e)   = cFoldWithDefault (ECall $ constantFoldCall e)
+constantFold (EIf i t e) = EIf (constantFold i) (constantFold t) (constantFold e)
+constantFold e = cFoldWithDefault e
 
+cFoldWithDefault :: forall a. ConstantFold a => Expr a -> Expr a
+cFoldWithDefault e = maybe e identity (cFold e)
 
 constantFoldUnary :: forall a. ConstantFold a => UnaryExpr a -> UnaryExpr a
 constantFoldUnary = overUnary {
@@ -254,3 +260,120 @@ cFoldDefault (EIf i t e) = cFoldIf i t e
 cFoldDefault (EFst e) = cFoldFst e
 cFoldDefault (ESnd e) = cFoldSnd e
 cFoldDefault e = cast <$> toConst e
+
+
+-------------------------------------------------------------------------------
+-- Identity Folding
+-------------------------------------------------------------------------------
+
+identityFold :: forall a. IdentityFold a => Expr a -> Expr a
+identityFold (EBind name ty val body) = EBind name ty (eraseType val') body'
+  where
+    eraseType = unsafeCoerce
+    val' = case ty of
+      TBoolean -> eraseType $ identityFold $ asBoolean val
+      TScalar  -> eraseType $ identityFold $ asNumber val
+      TVec2    -> eraseType $ identityFold $ asVec2 val
+      TVec3    -> eraseType $ identityFold $ asVec3 val
+      TComplex -> eraseType $ identityFold $ asComplex val
+      TColor   -> eraseType $ identityFold $ asColor val
+    body' = identityFold body
+identityFold (EIf i t e) = EIf (identityFold i) (identityFold t) (identityFold e)
+identityFold (EUnary e)  = (EUnary $ identityFoldUnary e)
+identityFold (ECall e)   = (ECall $ identityFoldCall e)
+identityFold (EBinary e) = iFoldWithDefault (EBinary e') e'
+  where
+    e' = identityFoldBinary e
+    iFold ex = iFoldL ex <|> iFoldR ex
+    iFoldWithDefault d ex = maybe d identity (iFold ex)
+identityFold e = e
+
+identityFoldUnary :: forall a. IdentityFold a => UnaryExpr a -> UnaryExpr a
+identityFoldUnary = overUnary {
+  onBool: identityFold,
+  onNum: identityFold,
+  onVec2: identityFold,
+  onVec3: identityFold,
+  onComplex: identityFold,
+  onColor: identityFold
+}
+
+identityFoldBinary :: forall a. IdentityFold a => BinaryExpr a -> BinaryExpr a
+identityFoldBinary = overBinary {
+  onBool: identityFold,
+  onNum: identityFold,
+  onVec2: identityFold,
+  onVec3: identityFold,
+  onComplex: identityFold,
+  onColor: identityFold
+}
+
+identityFoldCall :: forall a. IdentityFold a => CallExpr a -> CallExpr a
+identityFoldCall = overCall {
+  onBool: identityFold,
+  onNum: identityFold,
+  onVec2: identityFold,
+  onVec3: identityFold,
+  onComplex: identityFold,
+  onColor: identityFold
+}
+
+
+class IdentityFold t where
+  iFoldL :: BinaryExpr t -> Maybe (Expr t)
+  iFoldR :: BinaryExpr t -> Maybe (Expr t)
+
+instance identityFoldBool :: IdentityFold Boolean where
+  iFoldL (BinAnd e1 e2)      = if e1 == tt then Just e2 else Nothing
+  iFoldL (BinOr e1 e2)       = if e1 == ff then Just e2 else Nothing
+  iFoldL _ = Nothing
+  iFoldR (BinAnd e1 e2)      = if e2 == tt then Just e1 else Nothing
+  iFoldR (BinOr e1 e2)       = if e2 == ff then Just e1 else Nothing
+  iFoldR _ = Nothing
+
+instance identityFoldNumber :: IdentityFold Number where
+  iFoldL (BinPlus e1 e2)     = if e1 == zero then Just e2 else Nothing
+  iFoldL (BinTimes e1 e2)    = if e1 == one then Just e2 else Nothing
+  iFoldL _ = Nothing
+  iFoldR (BinPlus e1 e2)     = if e2 == zero then Just e1 else Nothing
+  iFoldR (BinMinus e1 e2)    = if e2 == zero then Just e1 else Nothing
+  iFoldR (BinTimes e1 e2)    = if e2 == one then Just e1 else Nothing
+  iFoldR (BinDiv e1 e2)      = if e2 == one then Just e1 else Nothing
+  iFoldR _ = Nothing
+
+instance identityFoldVec2 :: IdentityFold Vec2 where
+  iFoldL (BinPlusV2 e1 e2)   = if e1 == zeroV then Just e2 else Nothing
+  iFoldL (BinScaleV2 e1 e2)  = if e1 == one then Just e2 else Nothing
+  iFoldL _ = Nothing
+  iFoldR (BinPlusV2 e1 e2)   = if e2 == zeroV then Just e1 else Nothing
+  iFoldR (BinMinusV2 e1 e2)  = if e2 == zeroV then Just e1 else Nothing
+  iFoldR _ = Nothing
+
+instance identityFoldVec3 :: IdentityFold Vec3 where
+  iFoldL (BinPlusV3 e1 e2)   = if e1 == zeroV then Just e2 else Nothing
+  iFoldL (BinScaleV3 e1 e2)  = if e1 == one then Just e2 else Nothing
+  iFoldL _ = Nothing
+  iFoldR (BinPlusV3 e1 e2)   = if e2 == zeroV then Just e1 else Nothing
+  iFoldR (BinMinusV3 e1 e2)  = if e2 == zeroV then Just e1 else Nothing
+  iFoldR _ = Nothing
+
+instance identityFoldComplex :: IdentityFold Complex where
+  iFoldL (BinPlusC e1 e2)    = if e1 == zero then Just e2 else Nothing
+  iFoldL (BinTimesC e1 e2)   = if e1 == one then Just e2 else Nothing
+  iFoldL (BinScaleC e1 e2)   = if e1 == one then Just e2 else Nothing
+  iFoldL _ = Nothing
+  iFoldR (BinPlusC e1 e2)    = if e2 == zero then Just e1 else Nothing
+  iFoldR (BinMinusC e1 e2)   = if e2 == zero then Just e1 else Nothing
+  iFoldR (BinTimesC e1 e2)   = if e2 == one then Just e1 else Nothing
+  iFoldR (BinDivC e1 e2)     = if e2 == one then Just e1 else Nothing
+  iFoldR _ = Nothing
+
+instance identityFoldColor :: IdentityFold Color where
+  iFoldL (BinPlusCol e1 e2)  = if e1 == zeroV then Just e2 else Nothing
+  iFoldL (BinTimesCol e1 e2) = if e1 == zeroV then Just e2 else Nothing
+  iFoldL (BinScaleCol e1 e2) = if e1 == zeroV then Just e2 else Nothing
+  iFoldL _ = Nothing
+  iFoldR (BinPlusCol e1 e2)  = if e2 == zeroV then Just e1 else Nothing
+  iFoldR (BinMinusCol e1 e2) = if e2 == zeroV then Just e1 else Nothing
+  iFoldR (BinTimesCol e1 e2) = if e2 == one then Just e1 else Nothing
+  iFoldR _ = Nothing

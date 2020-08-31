@@ -87,14 +87,6 @@ data Type
   | TComplex
   | TColor
 
-type Tag = Expr Boolean
-
-tagLeft :: Tag
-tagLeft = tt
-
-tagRight :: Tag
-tagRight = ff
-
 data UnaryExpr t
   = UnNegate (Expr Number)
   | UnNot (Expr Boolean)
@@ -179,6 +171,22 @@ data Expr t
   | ECall (CallExpr t)
   | EIf (Expr Boolean) (Expr t) (Expr t)
   | EBind String Type (forall a. Expr a) (Expr t)
+
+derive instance eqType :: Eq Type
+derive instance eqExpr :: Eq (Expr a)
+derive instance eqUnaryExpr :: Eq (UnaryExpr a)
+derive instance eqBinaryExpr :: Eq (BinaryExpr a)
+derive instance eqCallExpr :: Eq (CallExpr a)
+
+
+type Tag = Expr Boolean
+
+tagLeft :: Tag
+tagLeft = tt
+
+tagRight :: Tag
+tagRight = ff
+
 
 class TypedExpr a where
   typeof :: (Expr a) -> Type
