@@ -13,7 +13,7 @@ import Data.Tuple (Tuple(..), fst, snd)
 import Data.Vec2 (Vec2(..))
 import Data.Vec3 (Vec3(..))
 import Data.VectorSpace (magnitude, zeroV, (*^), (<.>), (^+^), (^-^))
-import Math (atan2, cos, log, log2e, sin, sqrt)
+import Math (atan2, cos, log, log2e, pow, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
 import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asVec2, asVec3, cast)
 import Shader.Expr.Traversal (overBinary, overCall, overUnary)
@@ -137,6 +137,7 @@ instance constantFoldNumber :: ConstantFold Number where
     cFold' (FnMax e1 e2)              = lift2 max e1 e2
     cFold' (FnMin e1 e2)              = lift2 min e1 e2
     cFold' (FnMod e1 e2)              = lift2 mod e1 e2
+    cFold' (FnPow e1 e2)              = lift2 pow e1 e2
     -- cFold' (FnSmoothstep e1 e2 e3) = TODO
     cFold' (FnLengthV2 e)             = lift1 magnitude e
     cFold' (FnLengthV3 e)             = lift1 magnitude e

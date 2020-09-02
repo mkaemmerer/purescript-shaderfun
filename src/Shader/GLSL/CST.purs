@@ -219,6 +219,7 @@ fromCallExpr (FnAtan e1 e2)          = CCall "atan"       $ [fromExpr e1, fromEx
 fromCallExpr (FnMax e1 e2)           = CCall "max"        $ [fromExpr e1, fromExpr e2]
 fromCallExpr (FnMin e1 e2)           = CCall "min"        $ [fromExpr e1, fromExpr e2]
 fromCallExpr (FnMod e1 e2)           = CCall "mod"        $ [fromExpr e1, fromExpr e2]
+fromCallExpr (FnPow e1 e2)           = CCall "pow"        $ [fromExpr e1, fromExpr e2]
 fromCallExpr (FnSmoothstep e1 e2 e3) = CCall "smoothstep" $ [fromExpr e1, fromExpr e2, fromExpr e3]
 fromCallExpr (FnLengthV2 e)          = CCall "length"     $ [fromExpr e]
 fromCallExpr (FnLengthV3 e)          = CCall "length"     $ [fromExpr e]

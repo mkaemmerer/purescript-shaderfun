@@ -48,6 +48,7 @@ module Shader.Expr
   , neq
   , num
   , p
+  , pow
   , projX
   , projY
   , projZ
@@ -143,6 +144,7 @@ data CallExpr t
   | FnMax (Expr Number) (Expr Number)
   | FnMin (Expr Number) (Expr Number)
   | FnMod (Expr Number) (Expr Number)
+  | FnPow (Expr Number) (Expr Number)
   | FnSmoothstep (Expr Number) (Expr Number) (Expr Number)
   | FnLengthV2 (Expr Vec2)
   | FnLengthV3 (Expr Vec3)
@@ -427,6 +429,9 @@ min = call2 FnMin
 
 mod :: Expr Number -> Expr Number -> Expr Number
 mod = call2 FnMod
+
+pow :: Expr Number -> Expr Number -> Expr Number
+pow = call2 FnPow
 
 smoothstep :: Expr Number -> Expr Number -> Expr Number -> Expr Number
 smoothstep = call3 FnSmoothstep
