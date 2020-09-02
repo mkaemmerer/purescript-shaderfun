@@ -16,7 +16,9 @@ data CST
   | CBool Boolean
   | CFloat Number
   | CVec2 CST CST
+  | CVec2Shorthand CST
   | CVec3 CST CST CST
+  | CVec3Shorthand CST
   | CPrefix UnaryOp CST
   | CPostfix CST UnaryOp
   | CBinary BinaryOp CST CST
@@ -28,12 +30,16 @@ data CST
   | CDecl GLSLType String CST -- declare variable without initialization
 
 
+derive instance eqCST :: Eq CST
+
 printCST :: CST -> String
 printCST (CVar n)             = n
 printCST (CBool b)            = show b
 printCST (CFloat n)           = show n
 printCST (CVec2 x y)          = "vec2(" <> printList [x, y] <> ")"
+printCST (CVec2Shorthand xy)  = "vec2(" <> printList [xy] <> ")"
 printCST (CVec3 x y z)        = "vec3(" <> printList [x, y, z] <> ")"
+printCST (CVec3Shorthand xyz) = "vec3(" <> printList [xyz] <> ")"
 printCST (CPrefix op e)       = op <> printCST e
 printCST (CPostfix e op)      = printCST e <> op
 printCST (CBinary op l r)     = intercalate " " [printCST l, op, printCST r]
@@ -101,6 +107,15 @@ ifPrec = 11
 maybeParens :: Int -> Int -> (Int -> CST) -> CST
 maybeParens p1 p2 mkCST = if p1 < p2 then CParen (mkCST topPrec) else mkCST p2
 
+makeVec2 :: CST -> CST -> CST
+makeVec2 x y
+  | x == y             = CVec2Shorthand x
+  | otherwise          = CVec2 x y
+
+makeVec3 :: CST -> CST -> CST -> CST
+makeVec3 x y z
+  | x == y && y == z   = CVec3Shorthand x
+  | otherwise          = CVec3 x y z
 
 -- Partial functions reference the fact that not all expressions in the grammar are well typed.
 -- Should (knock on wood) still be a total functions over well typed expressions
@@ -111,10 +126,10 @@ fromExprPrec :: Partial => forall a. Int -> Expr a -> CST
 fromExprPrec p (EVar name)    = CVar name
 fromExprPrec p (ENum n)       = CFloat n
 fromExprPrec p (EBool b)      = CBool b
-fromExprPrec p (EVec2 x y)    = CVec2 (fromExpr x) (fromExpr y)
-fromExprPrec p (EVec3 x y z)  = CVec3 (fromExpr x) (fromExpr y) (fromExpr z)
-fromExprPrec p (EComplex r i) = CVec2 (fromExpr r) (fromExpr i)
-fromExprPrec p (EColor r g b) = CVec3 (fromExpr r) (fromExpr g) (fromExpr b)
+fromExprPrec p (EVec2 x y)    = makeVec2 (fromExpr x) (fromExpr y)
+fromExprPrec p (EVec3 x y z)  = makeVec3 (fromExpr x) (fromExpr y) (fromExpr z)
+fromExprPrec p (EComplex r i) = makeVec2 (fromExpr r) (fromExpr i)
+fromExprPrec p (EColor r g b) = makeVec3 (fromExpr r) (fromExpr g) (fromExpr b)
 fromExprPrec p (EUnary e)     = maybeParens p opPrec mkUnary
   where
     opPrec = unaryPrec e
