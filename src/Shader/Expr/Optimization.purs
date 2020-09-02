@@ -145,7 +145,6 @@ instance constantFoldNumber :: ConstantFold Number where
     cFold' (FnDotC e1 e2)             = lift2 (<.>) e1 e2
     -- cFold' (FnReflectV2 e1 e2)        = TODO
     -- cFold' (FnReflectV3 e1 e2)        = TODO
-    -- cFold' (FnMix e1 e2 e3)           = TODO
     cFold' e = Nothing
   cFold e = cFoldDefault e
 

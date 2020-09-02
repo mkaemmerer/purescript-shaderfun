@@ -44,7 +44,6 @@ module Shader.Expr
   , lte
   , max
   , min
-  , mix
   , mod
   , neq
   , num
@@ -152,7 +151,6 @@ data CallExpr t
   | FnDotC (Expr Complex) (Expr Complex)
   | FnReflectV2 (Expr Vec2) (Expr Vec2)
   | FnReflectV3 (Expr Vec3) (Expr Vec3)
-  | FnMix (Expr Color) (Expr Color) (Expr Number)
 
 data Expr t
   = EVar String
@@ -454,10 +452,6 @@ dotV3  = call2 FnDotV3
 
 dotC :: Expr Complex -> Expr Complex -> Expr Number
 dotC  = call2 FnDotC
-
--- Color functions
-mix :: Expr Color -> Expr Color -> Expr Number -> Expr Color
-mix = call3 FnMix
 
 
 -- Useful Instances

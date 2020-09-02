@@ -118,7 +118,6 @@ elaborateCall (FnDotV3 e1 e2)         = FnDotV3 (elaborate e1) (elaborate e2)
 elaborateCall (FnDotC e1 e2)          = FnDotC (elaborate e1) (elaborate e2)
 elaborateCall (FnReflectV2 e1 e2)     = FnReflectV2 (elaborate e1) (elaborate e2)
 elaborateCall (FnReflectV3 e1 e2)     = FnReflectV3 (elaborate e1) (elaborate e2)
-elaborateCall (FnMix e1 e2 e3)        = FnMix (elaborate e1) (elaborate e2) (elaborate e3)
 
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
@@ -237,4 +236,3 @@ liftDeclCall (FnDotV3 e1 e2)         = FnDotV3      <$> liftDecl e1 <*> liftDecl
 liftDeclCall (FnDotC e1 e2)          = FnDotC       <$> liftDecl e1 <*> liftDecl e2
 liftDeclCall (FnReflectV2 e1 e2)     = FnReflectV2  <$> liftDecl e1 <*> liftDecl e2
 liftDeclCall (FnReflectV3 e1 e2)     = FnReflectV3  <$> liftDecl e1 <*> liftDecl e2
-liftDeclCall (FnMix e1 e2 e3)        = FnMix        <$> liftDecl e1 <*> liftDecl e2 <*> liftDecl e3

@@ -227,4 +227,3 @@ fromCallExpr (FnDotV3 e1 e2)         = CCall "dot"        $ [fromExpr e1, fromEx
 fromCallExpr (FnDotC e1 e2)          = CCall "dot"        $ [fromExpr e1, fromExpr e2]
 fromCallExpr (FnReflectV2 e1 e2)     = CCall "reflect"    $ [fromExpr e1, fromExpr e2]
 fromCallExpr (FnReflectV3 e1 e2)     = CCall "reflect"    $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnMix e1 e2 e3)        = CCall "mix"        $ [fromExpr e1, fromExpr e2, fromExpr e3]
