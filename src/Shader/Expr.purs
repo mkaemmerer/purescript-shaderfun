@@ -265,6 +265,7 @@ snd t = ESnd (eraseType t)
 
 -- Encode sum types using product types
 -- TODO: can this be generalized with Generics/Type Reps?
+-- TODO: make EInl EInr EMatch proper expressions. Handle through elaboration.
 inl :: forall a b. Expr a -> Expr (Either a b)
 inl a = ETuple (eraseType tagLeft) (eraseType a)
 
