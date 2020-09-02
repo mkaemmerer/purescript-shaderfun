@@ -16,7 +16,7 @@ import Data.VectorSpace (magnitude, zeroV, (*^), (<.>), (^+^), (^-^))
 import Math (atan2, cos, log, log2e, pow, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
 import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asVec2, asVec3, cast)
-import Shader.Expr.Traversal (overBinary, overCall, overUnary)
+import Shader.Expr.Traversal (Traversal, overBinary, overCall, overUnary)
 import Unsafe.Coerce (unsafeCoerce)
 
 -------------------------------------------------------------------------------
@@ -44,8 +44,8 @@ constantFold e = cFoldWithDefault e
 cFoldWithDefault :: forall a. ConstantFold a => Expr a -> Expr a
 cFoldWithDefault e = maybe e identity (cFold e)
 
-constantFoldUnary :: forall a. ConstantFold a => UnaryExpr a -> UnaryExpr a
-constantFoldUnary = overUnary {
+constantFoldTraversal :: Unit -> Traversal
+constantFoldTraversal _ = {
   onBool: constantFold,
   onNum: constantFold,
   onVec2: constantFold,
@@ -53,26 +53,15 @@ constantFoldUnary = overUnary {
   onComplex: constantFold,
   onColor: constantFold
 }
+
+constantFoldUnary :: forall a. ConstantFold a => UnaryExpr a -> UnaryExpr a
+constantFoldUnary = overUnary $ constantFoldTraversal unit
 
 constantFoldBinary :: forall a. ConstantFold a => BinaryExpr a -> BinaryExpr a
-constantFoldBinary = overBinary {
-  onBool: constantFold,
-  onNum: constantFold,
-  onVec2: constantFold,
-  onVec3: constantFold,
-  onComplex: constantFold,
-  onColor: constantFold
-}
+constantFoldBinary = overBinary $ constantFoldTraversal unit
 
 constantFoldCall :: forall a. ConstantFold a => CallExpr a -> CallExpr a
-constantFoldCall = overCall {
-  onBool: constantFold,
-  onNum: constantFold,
-  onVec2: constantFold,
-  onVec3: constantFold,
-  onComplex: constantFold,
-  onColor: constantFold
-}
+constantFoldCall = overCall $ constantFoldTraversal unit
 
 class ConstantFold t where
   toConst :: Expr t -> Maybe t
@@ -288,8 +277,8 @@ identityFold (EBinary e) = iFoldWithDefault (EBinary e') e'
     iFoldWithDefault d ex = maybe d identity (iFold ex)
 identityFold e = e
 
-identityFoldUnary :: forall a. IdentityFold a => UnaryExpr a -> UnaryExpr a
-identityFoldUnary = overUnary {
+identityFoldTraversal :: Unit -> Traversal
+identityFoldTraversal _ = {
   onBool: identityFold,
   onNum: identityFold,
   onVec2: identityFold,
@@ -297,26 +286,15 @@ identityFoldUnary = overUnary {
   onComplex: identityFold,
   onColor: identityFold
 }
+
+identityFoldUnary :: forall a. IdentityFold a => UnaryExpr a -> UnaryExpr a
+identityFoldUnary = overUnary $ identityFoldTraversal unit
 
 identityFoldBinary :: forall a. IdentityFold a => BinaryExpr a -> BinaryExpr a
-identityFoldBinary = overBinary {
-  onBool: identityFold,
-  onNum: identityFold,
-  onVec2: identityFold,
-  onVec3: identityFold,
-  onComplex: identityFold,
-  onColor: identityFold
-}
+identityFoldBinary = overBinary $ identityFoldTraversal unit
 
 identityFoldCall :: forall a. IdentityFold a => CallExpr a -> CallExpr a
-identityFoldCall = overCall {
-  onBool: identityFold,
-  onNum: identityFold,
-  onVec2: identityFold,
-  onVec3: identityFold,
-  onComplex: identityFold,
-  onColor: identityFold
-}
+identityFoldCall = overCall $ identityFoldTraversal unit
 
 
 class IdentityFold t where
