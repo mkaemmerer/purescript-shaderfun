@@ -1,8 +1,13 @@
-module Shader.GLSL.CST (CST, printCST, fromExpr) where
+module Shader.GLSL.CST (CExpr, CStmt, printCST, fromExpr) where
 
 import Prelude
 
+import Control.Monad.Writer (Writer, runWriter, tell)
+import Data.Array (reverse)
 import Data.Foldable (intercalate)
+import Data.Maybe (Maybe(..))
+import Data.Traversable (sequence)
+import Data.Tuple (Tuple(..))
 import Partial (crash)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
 
@@ -11,48 +16,70 @@ type BinaryOp = String
 type GLSLFn   = String
 type GLSLType = String
 
-data CST
-  = CVar String
-  | CBool Boolean
-  | CFloat Number
-  | CVec2 CST CST
-  | CVec2Shorthand CST
-  | CVec3 CST CST CST
-  | CVec3Shorthand CST
-  | CPrefix UnaryOp CST
-  | CPostfix CST UnaryOp
-  | CBinary BinaryOp CST CST
-  | CCall GLSLFn (Array CST)
-  | CIf CST CST CST
-  | CParen CST
-  | CReturn CST
-  | CBind GLSLType String CST CST
-  | CDecl GLSLType String CST -- declare variable without initialization
+data CStmt
+  = CSBind GLSLType String CExpr
+  | CSReturn CExpr
+  | CSIf CExpr CBlock (Maybe CBlock)
+  | CSLoop Int CBlock
+  | CSBreak
 
+type CBlock = Array CStmt
 
-derive instance eqCST :: Eq CST
+data CExpr
+  = CEVar String
+  | CEBool Boolean
+  | CEFloat Number
+  | CEVec2 CExpr CExpr
+  | CEVec2Shorthand CExpr
+  | CEVec3 CExpr CExpr CExpr
+  | CEVec3Shorthand CExpr
+  | CEPrefix UnaryOp CExpr
+  | CEPostfix UnaryOp CExpr
+  | CEBinary BinaryOp CExpr CExpr
+  | CECall GLSLFn (Array CExpr)
+  | CEIf CExpr CExpr CExpr
+  | CEParen CExpr
 
-printCST :: CST -> String
-printCST (CVar n)             = n
-printCST (CBool b)            = show b
-printCST (CFloat n)           = show n
-printCST (CVec2 x y)          = "vec2(" <> printList [x, y] <> ")"
-printCST (CVec2Shorthand xy)  = "vec2(" <> printList [xy] <> ")"
-printCST (CVec3 x y z)        = "vec3(" <> printList [x, y, z] <> ")"
-printCST (CVec3Shorthand xyz) = "vec3(" <> printList [xyz] <> ")"
-printCST (CPrefix op e)       = op <> printCST e
-printCST (CPostfix e op)      = printCST e <> op
-printCST (CBinary op l r)     = intercalate " " [printCST l, op, printCST r]
-printCST (CCall fn args)      = fn <> "(" <> printList args <> ")"
-printCST (CIf i t e)          = printCST i <> " ? " <> printCST t <> " : " <> printCST e
-printCST (CParen e)           = "(" <> printCST e <> ")"
-printCST (CBind t name e1 e2) = t <> " " <> name <> " = " <> printCST e1 <> ";\n" <> printCST e2
-printCST (CDecl t name e)     = t <> " " <> name <> ";\n" <> printCST e
-printCST (CReturn e)          = "return " <> printCST e <> ";"
+derive instance eqCExpr :: Eq CExpr
+derive instance eqCStmt :: Eq CStmt
 
-printList :: Array CST -> String
-printList l = l # map printCST >>> intercalate ", "
+parens :: String -> String
+parens s = "(" <> s <> ")"
 
+brackets :: String -> String
+brackets s = "{" <> "\n" <> s <> "\n" <> "}" <> "\n"
+
+printCST :: CBlock -> String
+printCST = printBlock
+
+printBlock :: CBlock -> String
+printBlock ss = intercalate "\n" $ printStmt <$> ss
+
+printStmt :: CStmt -> String
+printStmt (CSBind ty name e)  = ty <> " " <> name <> " = " <> printExpr e <> ";"
+printStmt (CSReturn e)        = "return " <> printExpr e <> ";"
+printStmt (CSIf c t Nothing)  = "if" <> parens (printExpr c) <> brackets (printBlock t)
+printStmt (CSIf c t (Just e)) = "if" <> parens (printExpr c) <> brackets (printBlock t) <> "else" <> brackets (printBlock e)
+printStmt (CSLoop bound s)    = "for(int i=0; i<" <> (show bound) <> "; i++)" <> brackets (printBlock s)
+printStmt (CSBreak)           = "break;"
+
+printExpr :: CExpr -> String
+printExpr (CEVar n)             = n
+printExpr (CEBool b)            = show b
+printExpr (CEFloat n)           = show n
+printExpr (CEVec2 x y)          = "vec2(" <> printList [x, y] <> ")"
+printExpr (CEVec2Shorthand xy)  = "vec2(" <> printList [xy] <> ")"
+printExpr (CEVec3 x y z)        = "vec3(" <> printList [x, y, z] <> ")"
+printExpr (CEVec3Shorthand xyz) = "vec3(" <> printList [xyz] <> ")"
+printExpr (CEPrefix op e)       = op <> printExpr e
+printExpr (CEPostfix op e)      = printExpr e <> op
+printExpr (CEBinary op l r)     = intercalate " " [printExpr l, op, printExpr r]
+printExpr (CECall fn args)      = fn <> "(" <> printList args <> ")"
+printExpr (CEIf i t e)          = printExpr i <> " ? " <> printExpr t <> " : " <> printExpr e
+printExpr (CEParen e)           = "(" <> printExpr e <> ")"
+
+printList :: Array CExpr -> String
+printList l = l # map printExpr >>> intercalate ", "
 
 
 topPrec :: Int
@@ -104,32 +131,42 @@ binaryPrec (BinOr _ _)        = 10
 ifPrec :: Int
 ifPrec = 11
 
-maybeParens :: Int -> Int -> (Int -> CST) -> CST
-maybeParens p1 p2 mkCST = if p1 < p2 then CParen (mkCST topPrec) else mkCST p2
+maybeParens :: Int -> Int -> (Int -> CSTWriter CExpr) -> CSTWriter CExpr
+maybeParens p1 p2 mkCExpr = if p1 < p2
+  then CEParen <$> (mkCExpr topPrec)
+  else mkCExpr p2
 
-makeVec2 :: CST -> CST -> CST
+makeVec2 :: CExpr -> CExpr -> CExpr
 makeVec2 x y
-  | x == y             = CVec2Shorthand x
-  | otherwise          = CVec2 x y
+  | x == y             = CEVec2Shorthand x
+  | otherwise          = CEVec2 x y
 
-makeVec3 :: CST -> CST -> CST -> CST
+makeVec3 :: CExpr -> CExpr -> CExpr -> CExpr
 makeVec3 x y z
-  | x == y && y == z   = CVec3Shorthand x
-  | otherwise          = CVec3 x y z
+  | x == y && y == z   = CEVec3Shorthand x
+  | otherwise          = CEVec3 x y z
+
+
+type CSTWriter a = Writer CBlock a
 
 -- Partial functions reference the fact that not all expressions in the grammar are well typed.
 -- Should (knock on wood) still be a total functions over well typed expressions
-fromExpr :: Partial => forall a. Expr a -> CST
-fromExpr e = fromExprPrec topPrec e
+fromExpr :: Partial => forall a. Expr a -> CBlock
+fromExpr e = (reverse block) <> [CSReturn expr]
+  where
+    (Tuple expr block) = runWriter $ fromExprTop e
 
-fromExprPrec :: Partial => forall a. Int -> Expr a -> CST
-fromExprPrec p (EVar name)    = CVar name
-fromExprPrec p (ENum n)       = CFloat n
-fromExprPrec p (EBool b)      = CBool b
-fromExprPrec p (EVec2 x y)    = makeVec2 (fromExpr x) (fromExpr y)
-fromExprPrec p (EVec3 x y z)  = makeVec3 (fromExpr x) (fromExpr y) (fromExpr z)
-fromExprPrec p (EComplex r i) = makeVec2 (fromExpr r) (fromExpr i)
-fromExprPrec p (EColor r g b) = makeVec3 (fromExpr r) (fromExpr g) (fromExpr b)
+fromExprTop :: Partial => forall a. Expr a -> CSTWriter CExpr
+fromExprTop e = fromExprPrec topPrec e
+
+fromExprPrec :: Partial => forall a. Int -> Expr a -> CSTWriter CExpr
+fromExprPrec p (EVar name)    = pure $ CEVar name
+fromExprPrec p (ENum n)       = pure $ CEFloat n
+fromExprPrec p (EBool b)      = pure $ CEBool b
+fromExprPrec p (EVec2 x y)    = makeVec2 <$> fromExprTop x <*> fromExprTop y
+fromExprPrec p (EVec3 x y z)  = makeVec3 <$> fromExprTop x <*> fromExprTop y <*> fromExprTop z
+fromExprPrec p (EComplex r i) = makeVec2 <$> fromExprTop r <*> fromExprTop i
+fromExprPrec p (EColor r g b) = makeVec3 <$> fromExprTop r <*> fromExprTop g <*> fromExprTop b
 fromExprPrec p (EUnary e)     = maybeParens p opPrec mkUnary
   where
     opPrec = unaryPrec e
@@ -141,12 +178,12 @@ fromExprPrec p (EBinary e)    = maybeParens p opPrec mkBinary
 fromExprPrec p (ECall e)      = fromCallExpr e
 fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
   where
-    mkIf q = CIf (fromExprPrec q i) (fromExprPrec q t) (fromExprPrec q e)
-fromExprPrec p (EBind v ty EUnit e) = CDecl (fromType ty) v (fromExpr e)
-fromExprPrec p (EBind v ty e1 e2)   = CBind (fromType ty) v (fromExpr e1) (fromExprBody e2)
-  where
-    fromExprBody e@(EBind _ _ _ _) = fromExpr e
-    fromExprBody e = CReturn (fromExpr e)
+    mkIf q = CEIf <$> fromExprPrec q i <*> fromExprPrec q t <*> fromExprPrec q e
+fromExprPrec p (EBind v ty e1 e2) = do
+    e1' <- fromExprTop e1
+    e2' <- fromExprTop e2
+    tell $ [CSBind (fromType ty) v e1']
+    pure e2'
 -- No concrete representation for these types. Handle by elaborating
 fromExprPrec p (ETuple _ _)       = crash
 fromExprPrec p (EFst _)           = crash
@@ -167,70 +204,70 @@ fromType TColor   = "vec3"
 fromType (TTuple _ _) = crash
 fromType (TEither _ _) = crash
 
-fromUnaryExpr :: Partial => forall a. Int -> UnaryExpr a -> CST
-fromUnaryExpr p (UnNegate e)         = CPrefix "-" (fromExprPrec p e)
-fromUnaryExpr p (UnNot e)            = CPrefix "!" (fromExprPrec p e)
-fromUnaryExpr p (UnProjV2X e)        = CPostfix (fromExprPrec p e) ".x"
-fromUnaryExpr p (UnProjV2Y e)        = CPostfix (fromExprPrec p e) ".y"
-fromUnaryExpr p (UnProjV3X e)        = CPostfix (fromExprPrec p e) ".x"
-fromUnaryExpr p (UnProjV3Y e)        = CPostfix (fromExprPrec p e) ".y"
-fromUnaryExpr p (UnProjV3Z e)        = CPostfix (fromExprPrec p e) ".z"
-fromUnaryExpr p (UnProjR e)          = CPostfix (fromExprPrec p e) ".r"
-fromUnaryExpr p (UnProjG e)          = CPostfix (fromExprPrec p e) ".g"
-fromUnaryExpr p (UnProjB e)          = CPostfix (fromExprPrec p e) ".b"
-fromUnaryExpr p (UnProjReal e)       = CPostfix (fromExprPrec p e) ".x"
-fromUnaryExpr p (UnProjImaginary e)  = CPostfix (fromExprPrec p e) ".y"
+fromUnaryExpr :: Partial => forall a. Int -> UnaryExpr a -> CSTWriter CExpr
+fromUnaryExpr p (UnNegate e)         = CEPrefix "-" <$> fromExprPrec p e
+fromUnaryExpr p (UnNot e)            = CEPrefix "!" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjV2X e)        = CEPostfix ".x" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjV2Y e)        = CEPostfix ".y" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjV3X e)        = CEPostfix ".x" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjV3Y e)        = CEPostfix ".y" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjV3Z e)        = CEPostfix ".z" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjR e)          = CEPostfix ".r" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjG e)          = CEPostfix ".g" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjB e)          = CEPostfix ".b" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjReal e)       = CEPostfix ".x" <$> fromExprPrec p e
+fromUnaryExpr p (UnProjImaginary e)  = CEPostfix ".y" <$> fromExprPrec p e
 
-fromBinaryExpr :: Partial => forall a. Int -> BinaryExpr a -> CST
-fromBinaryExpr p (BinEq e1 e2)        = CBinary "==" (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinNeq e1 e2)       = CBinary "!=" (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinAnd e1 e2)       = CBinary "&&" (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinOr e1 e2)        = CBinary "||" (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinLt e1 e2)        = CBinary "<"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinLte e1 e2)       = CBinary "<=" (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinGt e1 e2)        = CBinary ">"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinGte e1 e2)       = CBinary ">=" (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinPlus e1 e2)      = CBinary "+"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinMinus e1 e2)     = CBinary "-"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinTimes e1 e2)     = CBinary "*"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinDiv e1 e2)       = CBinary "/"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinPlusV2 e1 e2)    = CBinary "+"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinMinusV2 e1 e2)   = CBinary "-"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinScaleV2 e1 e2)   = CBinary "*"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinPlusV3 e1 e2)    = CBinary "+"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinMinusV3 e1 e2)   = CBinary "-"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinScaleV3 e1 e2)   = CBinary "*"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinPlusC e1 e2)     = CBinary "+"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinMinusC e1 e2)    = CBinary "-"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinScaleC e1 e2)    = CBinary "*"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinPlusCol e1 e2)   = CBinary "+"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinMinusCol e1 e2)  = CBinary "-"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinTimesCol e1 e2)  = CBinary "*"  (fromExprPrec p e1) (fromExprPrec p e2)
-fromBinaryExpr p (BinScaleCol e1 e2)  = CBinary "*"  (fromExprPrec p e1) (fromExprPrec p e2)
+fromBinaryExpr :: Partial => forall a. Int -> BinaryExpr a -> CSTWriter CExpr
+fromBinaryExpr p (BinEq e1 e2)        = CEBinary "==" <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinNeq e1 e2)       = CEBinary "!=" <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinAnd e1 e2)       = CEBinary "&&" <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinOr e1 e2)        = CEBinary "||" <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinLt e1 e2)        = CEBinary "<"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinLte e1 e2)       = CEBinary "<=" <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinGt e1 e2)        = CEBinary ">"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinGte e1 e2)       = CEBinary ">=" <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinPlus e1 e2)      = CEBinary "+"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinMinus e1 e2)     = CEBinary "-"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinTimes e1 e2)     = CEBinary "*"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinDiv e1 e2)       = CEBinary "/"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinPlusV2 e1 e2)    = CEBinary "+"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinMinusV2 e1 e2)   = CEBinary "-"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinScaleV2 e1 e2)   = CEBinary "*"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinPlusV3 e1 e2)    = CEBinary "+"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinMinusV3 e1 e2)   = CEBinary "-"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinScaleV3 e1 e2)   = CEBinary "*"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinPlusC e1 e2)     = CEBinary "+"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinMinusC e1 e2)    = CEBinary "-"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinScaleC e1 e2)    = CEBinary "*"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinPlusCol e1 e2)   = CEBinary "+"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinMinusCol e1 e2)  = CEBinary "-"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinTimesCol e1 e2)  = CEBinary "*"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
+fromBinaryExpr p (BinScaleCol e1 e2)  = CEBinary "*"  <$> fromExprPrec p e1 <*> fromExprPrec p e2
 -- Handle these ops by elaborating
 fromBinaryExpr p (BinDivC _ _)        = crash
 fromBinaryExpr p (BinTimesC _ _)      = crash
 
-fromCallExpr :: Partial => forall a. CallExpr a -> CST
-fromCallExpr (FnAbs e)               = CCall "abs"        $ [fromExpr e]
-fromCallExpr (FnCos e)               = CCall "cos"        $ [fromExpr e]
-fromCallExpr (FnFloor e)             = CCall "floor"      $ [fromExpr e]
-fromCallExpr (FnFract e)             = CCall "fract"      $ [fromExpr e]
-fromCallExpr (FnLog e)               = CCall "log"        $ [fromExpr e]
-fromCallExpr (FnLog2 e)              = CCall "log2"       $ [fromExpr e]
-fromCallExpr (FnSaturate e)          = CCall "saturate"   $ [fromExpr e]
-fromCallExpr (FnSin e)               = CCall "sin"        $ [fromExpr e]
-fromCallExpr (FnSqrt e)              = CCall "sqrt"       $ [fromExpr e]
-fromCallExpr (FnAtan e1 e2)          = CCall "atan"       $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnMax e1 e2)           = CCall "max"        $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnMin e1 e2)           = CCall "min"        $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnMod e1 e2)           = CCall "mod"        $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnPow e1 e2)           = CCall "pow"        $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnSmoothstep e1 e2 e3) = CCall "smoothstep" $ [fromExpr e1, fromExpr e2, fromExpr e3]
-fromCallExpr (FnLengthV2 e)          = CCall "length"     $ [fromExpr e]
-fromCallExpr (FnLengthV3 e)          = CCall "length"     $ [fromExpr e]
-fromCallExpr (FnDotV2 e1 e2)         = CCall "dot"        $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnDotV3 e1 e2)         = CCall "dot"        $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnDotC e1 e2)          = CCall "dot"        $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnReflectV2 e1 e2)     = CCall "reflect"    $ [fromExpr e1, fromExpr e2]
-fromCallExpr (FnReflectV3 e1 e2)     = CCall "reflect"    $ [fromExpr e1, fromExpr e2]
+fromCallExpr :: Partial => forall a. CallExpr a -> CSTWriter CExpr
+fromCallExpr (FnAbs e)               = CECall "abs"        <$> sequence [fromExprTop e]
+fromCallExpr (FnCos e)               = CECall "cos"        <$> sequence [fromExprTop e]
+fromCallExpr (FnFloor e)             = CECall "floor"      <$> sequence [fromExprTop e]
+fromCallExpr (FnFract e)             = CECall "fract"      <$> sequence [fromExprTop e]
+fromCallExpr (FnLog e)               = CECall "log"        <$> sequence [fromExprTop e]
+fromCallExpr (FnLog2 e)              = CECall "log2"       <$> sequence [fromExprTop e]
+fromCallExpr (FnSaturate e)          = CECall "saturate"   <$> sequence [fromExprTop e]
+fromCallExpr (FnSin e)               = CECall "sin"        <$> sequence [fromExprTop e]
+fromCallExpr (FnSqrt e)              = CECall "sqrt"       <$> sequence [fromExprTop e]
+fromCallExpr (FnAtan e1 e2)          = CECall "atan"       <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnMax e1 e2)           = CECall "max"        <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnMin e1 e2)           = CECall "min"        <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnMod e1 e2)           = CECall "mod"        <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnPow e1 e2)           = CECall "pow"        <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnSmoothstep e1 e2 e3) = CECall "smoothstep" <$> sequence [fromExprTop e1, fromExprTop e2, fromExprTop e3]
+fromCallExpr (FnLengthV2 e)          = CECall "length"     <$> sequence [fromExprTop e]
+fromCallExpr (FnLengthV3 e)          = CECall "length"     <$> sequence [fromExprTop e]
+fromCallExpr (FnDotV2 e1 e2)         = CECall "dot"        <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnDotV3 e1 e2)         = CECall "dot"        <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnDotC e1 e2)          = CECall "dot"        <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnReflectV2 e1 e2)     = CECall "reflect"    <$> sequence [fromExprTop e1, fromExprTop e2]
+fromCallExpr (FnReflectV3 e1 e2)     = CECall "reflect"    <$> sequence [fromExprTop e1, fromExprTop e2]
