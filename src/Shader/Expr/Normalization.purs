@@ -4,15 +4,31 @@ import Prelude
 
 import Control.Monad.Cont (Cont, runCont, callCC)
 import Data.Tuple (Tuple(..))
-import Partial (crash)
 import Partial.Unsafe (unsafePartial)
-import Shader.Expr (class TypedExpr, BinaryExpr(..), CallExpr, Expr(..), UnaryExpr, complex, projImaginary, projReal)
-import Shader.Expr.Traversal (fromGeneric, fromGenericA, overBinary, overBinaryA, overCall, overCallA, overUnary, overUnaryA)
+import Shader.Expr (class TypedExpr, BinaryExpr(..), CallExpr, Expr(..), Type(..), UnaryExpr, complex, fst, projImaginary, projReal, snd, tuple)
+import Shader.Expr.Cast (asBoolean, asColor, asComplex, asNumber, asVec2, asVec3)
+import Shader.Expr.Traversal (fromGeneric, fromGenericA, over, overBinaryA, overCallA, overUnaryA)
 import Unsafe.Coerce (unsafeCoerce)
 
 
+subst :: forall a. String -> Expr a -> Expr a -> Expr a
+subst v e1 (EVar n)
+  | v == n    = e1
+  | otherwise = EVar n
+subst v e1 e2 = over traversal e2
+  where
+    traversal = {
+      onBool:    subst v (asBoolean e1),
+      onNum:     subst v (asNumber e1),
+      onVec2:    subst v (asVec2 e1),
+      onVec3:    subst v (asVec3 e1),
+      onComplex: subst v (asComplex e1),
+      onColor:   subst v (asColor e1)
+    }
+
+
 normalize :: forall a. TypedExpr a => Expr a -> Expr a
-normalize = unsafePartial $ elaborate >>> liftDecls
+normalize = unsafePartial $ liftDecls >>> elaborate
 
 
 elaborate :: Partial => forall a. Expr a -> Expr a
@@ -33,35 +49,29 @@ elaborate (EBinary (BinDivC c1 c2)) = eraseType $ complex nr ni
   d  = r2*r2 + i2*i2
 elaborate (EFst (ETuple e1 e2)) = elaborate e1
 elaborate (ESnd (ETuple e1 e2)) = elaborate e2
-elaborate (EFst (EIf c t e)) = EIf (elaborate c) (elaborate $ EFst t) (elaborate $ EFst e)
-elaborate (ESnd (EIf c t e)) = EIf (elaborate c) (elaborate $ ESnd t) (elaborate $ ESnd e)
--- Other cases
-elaborate (EVar name)              = EVar name
-elaborate (ENum n)                 = ENum n
-elaborate (EBool b)                = EBool b
-elaborate (EVec2 x y)              = EVec2 (elaborate x) (elaborate y)
-elaborate (EVec3 x y z)            = EVec3 (elaborate x) (elaborate y) (elaborate z)
-elaborate (EComplex r i)           = EComplex (elaborate r) (elaborate i)
-elaborate (EColor r g b)           = EColor (elaborate r) (elaborate g) (elaborate b)
-elaborate (EUnary e)               = EUnary (elaborateUnary e)
-elaborate (EBinary e)              = EBinary (elaborateBinary e)
-elaborate (ECall e)                = ECall (elaborateCall e)
-elaborate (EIf i t e)              = EIf (elaborate i) (elaborate t) (elaborate e)
-elaborate (EBind name ty val body) = EBind name ty (elaborate val) (elaborate body)
--- Not handled
-elaborate (EFst _)     = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
-elaborate (ESnd _)     = crash -- ETuple/EIf are the only inhabitants of type (Expr (Tuple a b))
-elaborate (ETuple _ _) = crash -- ETuple is not a valid top-level term
-elaborate (EUnit)      = crash -- Unit is not a valid top-level term
+elaborate (EFst (EIf i t e)) = EIf (elaborate i) (elaborate $ EFst t) (elaborate $ EFst e)
+elaborate (ESnd (EIf i t e)) = EIf (elaborate i) (elaborate $ ESnd t) (elaborate $ ESnd e)
+elaborate (EIf i t e)        = EIf (elaborate i) (elaborate t) (elaborate e)
+-- Elaborate types
+elaborate (EBind name ty val body) = case ty of
+  TBoolean              -> EBind name ty (elaborate val) (elaborate body)
+  TScalar               -> EBind name ty (elaborate val) (elaborate body)
+  TVec2                 -> EBind name ty (elaborate val) (elaborate body)
+  TVec3                 -> EBind name ty (elaborate val) (elaborate body)
+  TComplex              -> EBind name ty (elaborate val) (elaborate body)
+  TColor                -> EBind name ty (elaborate val) (elaborate body)
+  (TTuple t_fst t_snd)  -> elaborate $
+    EBind name_fst t_fst (eraseType val_fst) $
+    EBind name_snd t_snd (eraseType val_snd) $ body'
+    where
+      val_fst  = fst val
+      val_snd  = snd val
+      name_fst = name <> "_fst"
+      name_snd = name <> "_snd"
+      tup      = tuple val_fst val_snd
+      body'    = subst name (eraseType tup) (elaborate body)
+elaborate e = over (fromGeneric elaborate) e
 
-elaborateUnary :: Partial => forall a. UnaryExpr a -> UnaryExpr a
-elaborateUnary = overUnary $ fromGeneric elaborate
-
-elaborateBinary :: Partial => forall a. BinaryExpr a -> BinaryExpr a
-elaborateBinary = overBinary $ fromGeneric elaborate
-
-elaborateCall :: Partial => forall a. CallExpr a -> CallExpr a
-elaborateCall = overCall $ fromGeneric elaborate
 
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
@@ -85,12 +95,11 @@ liftDecl (EUnary e)     = writeDecl $ EUnary   <$> liftDeclUnary e
 liftDecl (EBinary e)    = writeDecl $ EBinary  <$> liftDeclBinary e
 liftDecl (ECall e)      = writeDecl $ ECall    <$> liftDeclCall e
 liftDecl (EIf i t e)    = writeDecl $ EIf      <$> liftDecl i <*> liftDecl t <*> liftDecl e
+liftDecl (EFst e)       = writeDecl $ EFst <$> liftDecl e
+liftDecl (ESnd e)       = writeDecl $ ESnd <$> liftDecl e
+liftDecl (EUnit)        = writeDecl $ pure EUnit
 liftDecl (EBind name ty val body) = (EBind name ty val) <$> liftDecl body
--- Not handled
-liftDecl (ETuple _ _) = crash
-liftDecl (EFst _)     = crash
-liftDecl (ESnd _)     = crash
-liftDecl (EUnit)      = crash
+liftDecl (ETuple e1 e2) = writeDecl $ (unsafeCoerce ETuple) <$> liftDecl e1 <*> liftDecl e2
 
 liftDeclUnary :: Partial => forall a b. UnaryExpr a -> Cont (Expr b) (UnaryExpr a)
 liftDeclUnary = overUnaryA $ fromGenericA liftDecl

@@ -15,7 +15,7 @@ import Control.Monad.State (State, get, modify, runState)
 import Data.Either (Either)
 import Data.HeytingAlgebra (ff, tt)
 import Data.Tuple (Tuple(..))
-import Shader.Expr (class TypedExpr, Expr(..), bindE, fst, ifE, inl, inr, matchE, snd, tuple, unit)
+import Shader.Expr (class TypedExpr, Expr(..), bindE, ifE, inl, inr, matchE, unit)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | `Builder` is a monad for building expressions with unique variable names
@@ -49,9 +49,6 @@ instance declarableTyped :: (TypedExpr t) => Declarable t where
 else instance declarableUnit :: Declarable Unit where
   decl = declUnit
 
-else instance declarableTuple :: (Declarable a, Declarable b) => Declarable (Tuple a b) where
-  decl = declTuple
-
 else instance declarableEither :: (Declarable a, Declarable b) => Declarable (Either a b) where
   decl = declEither
 
@@ -65,14 +62,6 @@ declSingle e = do
 
 declUnit :: Expr Unit -> ExprBuilder Unit
 declUnit e = pure unit
-
-declTuple :: forall a b. Declarable a => Declarable b => Expr (Tuple a b) -> ExprBuilder (Tuple a b)
-declTuple e = do
-  let e1 = fst e
-  let e2 = snd e
-  v1 <- decl e1
-  v2 <- decl e2
-  pure $ tuple v1 v2
 
 declEither :: forall a b. Declarable a => Declarable b => Expr (Either a b) -> ExprBuilder (Either a b)
 declEither e = do

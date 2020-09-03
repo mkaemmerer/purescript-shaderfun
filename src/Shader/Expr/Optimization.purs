@@ -16,7 +16,7 @@ import Data.VectorSpace (magnitude, zeroV, (*^), (<.>), (^+^), (^-^))
 import Math (atan2, cos, log, log2e, pow, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
 import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asVec2, asVec3, cast)
-import Shader.Expr.Traversal (Traversal, overBinary, overCall, overUnary)
+import Shader.Expr.Traversal (Traversal, over, overBinary, overCall, overUnary)
 import Unsafe.Coerce (unsafeCoerce)
 
 -------------------------------------------------------------------------------
@@ -28,12 +28,13 @@ constantFold (EBind name ty val body) = EBind name ty (eraseType val') body'
   where
     eraseType = unsafeCoerce
     val' = case ty of
-      TBoolean -> eraseType $ constantFold $ asBoolean val
-      TScalar  -> eraseType $ constantFold $ asNumber val
-      TVec2    -> eraseType $ constantFold $ asVec2 val
-      TVec3    -> eraseType $ constantFold $ asVec3 val
-      TComplex -> eraseType $ constantFold $ asComplex val
-      TColor   -> eraseType $ constantFold $ asColor val
+      TBoolean     -> eraseType $ constantFold $ asBoolean val
+      TScalar      -> eraseType $ constantFold $ asNumber val
+      TVec2        -> eraseType $ constantFold $ asVec2 val
+      TVec3        -> eraseType $ constantFold $ asVec3 val
+      TComplex     -> eraseType $ constantFold $ asComplex val
+      TColor       -> eraseType $ constantFold $ asColor val
+      (TTuple a b) -> val -- Can't optimize
     body' = constantFold body
 constantFold (EUnary e)  = cFoldWithDefault (EUnary $ constantFoldUnary e)
 constantFold (EBinary e) = cFoldWithDefault (EBinary $ constantFoldBinary e)
@@ -260,22 +261,20 @@ identityFold (EBind name ty val body) = EBind name ty (eraseType val') body'
   where
     eraseType = unsafeCoerce
     val' = case ty of
-      TBoolean -> eraseType $ identityFold $ asBoolean val
-      TScalar  -> eraseType $ identityFold $ asNumber val
-      TVec2    -> eraseType $ identityFold $ asVec2 val
-      TVec3    -> eraseType $ identityFold $ asVec3 val
-      TComplex -> eraseType $ identityFold $ asComplex val
-      TColor   -> eraseType $ identityFold $ asColor val
+      TBoolean     -> eraseType $ identityFold $ asBoolean val
+      TScalar      -> eraseType $ identityFold $ asNumber val
+      TVec2        -> eraseType $ identityFold $ asVec2 val
+      TVec3        -> eraseType $ identityFold $ asVec3 val
+      TComplex     -> eraseType $ identityFold $ asComplex val
+      TColor       -> eraseType $ identityFold $ asColor val
+      (TTuple a b) -> val -- Can't optimize
     body' = identityFold body
-identityFold (EIf i t e) = EIf (identityFold i) (identityFold t) (identityFold e)
-identityFold (EUnary e)  = (EUnary $ identityFoldUnary e)
-identityFold (ECall e)   = (ECall $ identityFoldCall e)
 identityFold (EBinary e) = iFoldWithDefault (EBinary e') e'
   where
     e' = identityFoldBinary e
     iFold ex = iFoldL ex <|> iFoldR ex
     iFoldWithDefault d ex = maybe d identity (iFold ex)
-identityFold e = e
+identityFold e = over (identityFoldTraversal unit) e
 
 identityFoldTraversal :: Unit -> Traversal
 identityFoldTraversal _ = {

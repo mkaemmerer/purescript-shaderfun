@@ -1,5 +1,6 @@
 module Shader.Expr.Traversal
-  ( overUnary
+  ( over
+  , overUnary
   , overBinary
   , overCall
   , overUnaryA
@@ -17,7 +18,7 @@ import Data.Color (Color)
 import Data.Complex (Complex)
 import Data.Vec2 (Vec2)
 import Data.Vec3 (Vec3)
-import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr, UnaryExpr(..))
+import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..))
 
 
 type Traversal = {
@@ -38,6 +39,24 @@ fromGeneric f = {
   onComplex: f,
   onColor:   f
 }
+
+over :: forall a. Traversal -> Expr a -> Expr a
+over t (EVar n)           = EVar n
+over t (EBool b)          = EBool b
+over t (ENum n)           = ENum n
+over t (EVec2 x y)        = EVec2 (over t x) (over t y)
+over t (EVec3 x y z)      = EVec3 (over t x) (over t y) (over t z)
+over t (EComplex r i)     = EComplex (over t r) (over t i)
+over t (EColor r g b)     = EColor (over t r) (over t g) (over t b)
+over t (EUnary e)         = EUnary $ overUnary t e
+over t (EBinary e)        = EBinary $ overBinary t e
+over t (ECall e)          = ECall $ overCall t e
+over t (EUnit)            = EUnit
+over t (ETuple a b)       = ETuple (over t a) (over t b)
+over t (EFst tup)         = EFst (over t tup)
+over t (ESnd tup)         = ESnd (over t tup)
+over t (EIf i thn els)    = EIf (over t i) (over t thn) (over t els)
+over t (EBind n ty e1 e2) = EBind n ty (over t e1) (over t e2)
 
 overUnary :: forall a.
   Traversal ->

@@ -141,7 +141,7 @@ fromExprPrec p (EBinary e)    = maybeParens p opPrec mkBinary
 fromExprPrec p (ECall e)      = fromCallExpr e
 fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
   where
-    mkIf q= CIf (fromExprPrec q i) (fromExprPrec q t) (fromExprPrec q e)
+    mkIf q = CIf (fromExprPrec q i) (fromExprPrec q t) (fromExprPrec q e)
 fromExprPrec p (EBind v ty EUnit e) = CDecl (fromType ty) v (fromExpr e)
 fromExprPrec p (EBind v ty e1 e2)   = CBind (fromType ty) v (fromExpr e1) (fromExprBody e2)
   where
@@ -153,13 +153,15 @@ fromExprPrec p (EFst _)     = crash
 fromExprPrec p (ESnd _)     = crash
 fromExprPrec p (EUnit)      = crash
 
-fromType :: Type -> String
+fromType :: Partial => Type -> String
 fromType TBoolean = "bool"
 fromType TScalar  = "float"
 fromType TVec2    = "vec2"
 fromType TVec3    = "vec3"
 fromType TComplex = "vec2"
 fromType TColor   = "vec3"
+-- Handle by elaborating
+fromType (TTuple _ _) = crash
 
 fromUnaryExpr :: Partial => forall a. Int -> UnaryExpr a -> CST
 fromUnaryExpr p (UnNegate e)         = CPrefix "-" (fromExprPrec p e)

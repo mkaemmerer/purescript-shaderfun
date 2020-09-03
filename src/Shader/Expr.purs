@@ -86,6 +86,7 @@ data Type
   | TVec3
   | TComplex
   | TColor
+  | TTuple Type Type
 
 data UnaryExpr t
   = UnNegate (Expr Number)
@@ -208,6 +209,9 @@ instance typedExprExprComplex :: TypedExpr Complex where
 
 instance typedExprExprColor :: TypedExpr Color where
   typeof e = TColor
+
+instance typedExprExprTuple :: (TypedExpr a, TypedExpr b) => TypedExpr (Tuple a b) where
+  typeof e = TTuple (typeof $ fst e) (typeof $ snd e)
 
 -- Unsafe, private constructors
 eraseType :: forall a b. Expr a -> Expr b
