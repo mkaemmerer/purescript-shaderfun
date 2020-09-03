@@ -14,7 +14,7 @@ import Prelude hiding (unit)
 import Control.Monad.State (State, get, modify, runState)
 import Data.Either (Either)
 import Data.Tuple (Tuple(..))
-import Shader.Expr (class TypedExpr, Expr(..), bindE, matchE)
+import Shader.Expr (class TypedExpr, Expr(..), bindE, matchE, recE)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | `Builder` is a monad for building expressions with unique variable names
@@ -50,6 +50,14 @@ match e l r = do
   let name = "v_" <> show count
   _ <- modify $ _ { count = count+1 }
   pure $ matchE e name l r
+
+rec :: forall t. (TypedExpr t) => Int -> (Expr t -> Expr (Either t t)) -> Expr t -> ExprBuilder t
+rec n f seed = do
+  { count, cont } <- get
+  let name = "v_" <> show count
+  let build b = bindE name (recE n seed name f) b
+  _ <- modify $ _ { count = count+1, cont = build >>> (eraseType cont) }
+  pure $ EVar name
 
 -- | Run an expression builder and yield the result
 runExprBuilder :: forall t. ExprBuilder t -> Expr t

@@ -89,10 +89,10 @@ eraseType = unsafeCoerce
 writeDecl :: forall a b. Cont (Expr b) (Expr a) -> Cont (Expr b) (Expr a)
 writeDecl e = e >>= \v -> callCC (v # _)
 
-liftDecls :: Partial => forall a. Expr a -> Expr a
+liftDecls :: forall a. Expr a -> Expr a
 liftDecls e = runCont (liftDecl e) identity
 
-liftDecl :: Partial => forall a b. Expr a -> Cont (Expr b) (Expr a)
+liftDecl :: forall a b. Expr a -> Cont (Expr b) (Expr a)
 liftDecl (EVar name)    = writeDecl $ pure (EVar name)
 liftDecl (EBool b)      = writeDecl $ pure (EBool b)
 liftDecl (ENum n)       = writeDecl $ pure (ENum n)
@@ -105,7 +105,6 @@ liftDecl (EBinary e)    = writeDecl $ EBinary  <$> liftDeclBinary e
 liftDecl (ECall e)      = writeDecl $ ECall    <$> liftDeclCall e
 liftDecl (EIf i t e)    = writeDecl $ EIf      <$> liftDecl i <*> liftDecl t <*> liftDecl e
 liftDecl (EUnit)        = writeDecl $ pure EUnit
-liftDecl (EBind name ty val body) = (EBind name ty val) <$> liftDecl body
 liftDecl (EFst e)       = writeDecl $ EFst <$> liftDecl e
 liftDecl (ESnd e)       = writeDecl $ ESnd <$> liftDecl e
 liftDecl (ETuple e1 e2) = writeDecl $ (unsafeCoerce ETuple) <$> liftDecl e1 <*> liftDecl e2
@@ -114,12 +113,16 @@ liftDecl (EInr e)       = writeDecl $ EInr <$> liftDecl e
 liftDecl (EMatch e lname l rname r) = writeDecl $ mkMatch <$> liftDecl e <*> liftDecl l <*> liftDecl r
   where
     mkMatch e' l' r' = unsafeCoerce (EMatch e' lname l' rname r')
+liftDecl (ERec n seed name loop) = mkRec <$> liftDecl seed <*> liftDecl loop
+  where
+    mkRec seed' loop' = ERec n seed' name loop'
+liftDecl (EBind name ty val body) = (EBind name ty val) <$> liftDecl body
 
-liftDeclUnary :: Partial => forall a b. UnaryExpr a -> Cont (Expr b) (UnaryExpr a)
-liftDeclUnary = overUnaryA $ fromGenericA liftDecl
+liftDeclUnary :: forall a b. UnaryExpr a -> Cont (Expr b) (UnaryExpr a)
+liftDeclUnary e = overUnaryA (fromGenericA liftDecl) e
 
-liftDeclBinary :: Partial => forall a b. BinaryExpr a -> Cont (Expr b) (BinaryExpr a)
-liftDeclBinary = overBinaryA $ fromGenericA liftDecl
+liftDeclBinary :: forall a b. BinaryExpr a -> Cont (Expr b) (BinaryExpr a)
+liftDeclBinary e = overBinaryA (fromGenericA liftDecl) e
 
-liftDeclCall :: Partial => forall a b. CallExpr a -> Cont (Expr b) (CallExpr a)
-liftDeclCall = overCallA $ fromGenericA liftDecl
+liftDeclCall :: forall a b. CallExpr a -> Cont (Expr b) (CallExpr a)
+liftDeclCall e = overCallA (fromGenericA liftDecl) e

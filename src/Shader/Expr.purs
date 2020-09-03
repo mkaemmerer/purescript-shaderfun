@@ -12,6 +12,8 @@ module Shader.Expr
   , abs
   , atan
   , bindE
+  , matchE
+  , recE
   , bool
   , color
   , complex
@@ -21,7 +23,6 @@ module Shader.Expr
   , snd
   , inl
   , inr
-  , matchE
   , cos
   , eq
   , floor
@@ -178,6 +179,7 @@ data Expr t
   | ECall (CallExpr t)
   | EIf (Expr Boolean) (Expr t) (Expr t)
   | EBind String Type (forall a. Expr a) (Expr t)
+  | ERec Int (Expr t) String (Expr (Either t t))
 
 derive instance eqType :: Eq Type
 derive instance eqExpr :: Eq (Expr a)
@@ -293,6 +295,12 @@ inr b = EInr (eraseType b)
 ifE :: forall a. Expr Boolean -> Expr a -> Expr a -> Expr a
 ifE i t e = EIf i t e
 
+loop :: forall a. Expr a -> Expr (Either a a)
+loop e = inl e
+
+break :: forall a. Expr a -> Expr (Either a a)
+break e = inr e
+
 bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
 bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
 
@@ -303,6 +311,9 @@ matchE e name lBranch rBranch = EMatch (eraseType e) name_l expr_l name_r expr_r
     name_r = name <> "_r"
     expr_l = lBranch (EVar name_l)
     expr_r = rBranch (EVar name_r)
+
+recE :: forall a. Int -> Expr a -> String -> (Expr a -> Expr (Either a a)) -> Expr a
+recE n seed name f = ERec n seed name (f $ EVar name)
 
 fromUnit :: Unit -> Expr Unit
 fromUnit _ = EUnit

@@ -59,6 +59,7 @@ over t (EIf i thn els)    = EIf (over t i) (over t thn) (over t els)
 over t (EInl val)         = EInl (over t val)
 over t (EInr val)         = EInr (over t val)
 over t (EMatch e lname l rname r) = EMatch (over t e) lname (over t l) rname (over t r)
+over t (ERec n seed name loop)    = ERec n (over t seed) name (over t loop)
 over t (EBind n ty e1 e2) = EBind n ty (over t e1) (over t e2)
 
 overUnary :: forall a.
