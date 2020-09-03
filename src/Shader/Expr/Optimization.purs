@@ -15,7 +15,7 @@ import Data.Vec3 (Vec3(..))
 import Data.VectorSpace (magnitude, zeroV, (*^), (<.>), (^+^), (^-^))
 import Math (atan2, cos, log, log2e, pow, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
-import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asVec2, asVec3, cast)
+import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asUnit, asVec2, asVec3, cast)
 import Shader.Expr.Traversal (Traversal, over, overBinary, overCall, overUnary)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -34,6 +34,7 @@ constantFold (EBind name ty val body) = EBind name ty (eraseType val') body'
       TVec3        -> eraseType $ constantFold $ asVec3 val
       TComplex     -> eraseType $ constantFold $ asComplex val
       TColor       -> eraseType $ constantFold $ asColor val
+      TUnit        -> eraseType $ constantFold $ asUnit val
       (TTuple a b) -> val -- Can't optimize
     body' = constantFold body
 constantFold (EUnary e)  = cFoldWithDefault (EUnary $ constantFoldUnary e)
@@ -67,6 +68,11 @@ constantFoldCall = overCall $ constantFoldTraversal unit
 class ConstantFold t where
   toConst :: Expr t -> Maybe t
   cFold :: Expr t -> Maybe (Expr t)
+
+instance constantFoldUnit :: ConstantFold Unit where
+  toConst EUnit = Just unit
+  toConst _ = Nothing
+  cFold e = cFoldDefault e
 
 instance constantFoldBoolean :: ConstantFold Boolean where
   toConst (EBool b) = Just b
@@ -267,6 +273,7 @@ identityFold (EBind name ty val body) = EBind name ty (eraseType val') body'
       TVec3        -> eraseType $ identityFold $ asVec3 val
       TComplex     -> eraseType $ identityFold $ asComplex val
       TColor       -> eraseType $ identityFold $ asColor val
+      TUnit        -> eraseType $ identityFold $ asUnit val
       (TTuple a b) -> val -- Can't optimize
     body' = identityFold body
 identityFold (EBinary e) = iFoldWithDefault (EBinary e') e'
@@ -299,6 +306,10 @@ identityFoldCall = overCall $ identityFoldTraversal unit
 class IdentityFold t where
   iFoldL :: BinaryExpr t -> Maybe (Expr t)
   iFoldR :: BinaryExpr t -> Maybe (Expr t)
+
+instance identityFoldUnit :: IdentityFold Unit where
+  iFoldL _ = Nothing
+  iFoldR _ = Nothing
 
 instance identityFoldBool :: IdentityFold Boolean where
   iFoldL (BinAnd e1 e2)      = if e1 == tt then Just e2 else Nothing

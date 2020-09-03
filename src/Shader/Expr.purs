@@ -26,6 +26,7 @@ module Shader.Expr
   , eq
   , floor
   , fract
+  , fromUnit
   , fromBoolean
   , fromNumber
   , fromColor
@@ -86,6 +87,7 @@ data Type
   | TVec3
   | TComplex
   | TColor
+  | TUnit
   | TTuple Type Type
 
 data UnaryExpr t
@@ -210,6 +212,9 @@ instance typedExprExprComplex :: TypedExpr Complex where
 instance typedExprExprColor :: TypedExpr Color where
   typeof e = TColor
 
+instance typedExprUnit :: TypedExpr Unit where
+  typeof e = TUnit
+
 instance typedExprExprTuple :: (TypedExpr a, TypedExpr b) => TypedExpr (Tuple a b) where
   typeof e = TTuple (typeof $ fst e) (typeof $ snd e)
 
@@ -288,6 +293,9 @@ ifE i t e = EIf i t e
 
 bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
 bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
+
+fromUnit :: Unit -> Expr Unit
+fromUnit _ = EUnit
 
 fromBoolean :: Boolean -> Expr Boolean
 fromBoolean = bool

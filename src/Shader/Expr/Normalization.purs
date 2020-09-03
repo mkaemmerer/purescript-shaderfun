@@ -60,6 +60,9 @@ elaborate (EBind name ty val body) = case ty of
   TVec3                 -> EBind name ty (elaborate val) (elaborate body)
   TComplex              -> EBind name ty (elaborate val) (elaborate body)
   TColor                -> EBind name ty (elaborate val) (elaborate body)
+  TUnit                 -> elaborate body'
+    where
+      body' = subst name EUnit body
   (TTuple t_fst t_snd)  -> elaborate $
     EBind name_fst t_fst (eraseType val_fst) $
     EBind name_snd t_snd (eraseType val_snd) $ body'
@@ -69,7 +72,7 @@ elaborate (EBind name ty val body) = case ty of
       name_fst = name <> "_fst"
       name_snd = name <> "_snd"
       tup      = tuple val_fst val_snd
-      body'    = subst name (eraseType tup) (elaborate body)
+      body'    = subst name (eraseType tup) body
 elaborate e = over (fromGeneric elaborate) e
 
 

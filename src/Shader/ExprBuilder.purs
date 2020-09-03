@@ -46,9 +46,6 @@ class Declarable t where
 instance declarableTyped :: (TypedExpr t) => Declarable t where
   decl = declSingle
 
-else instance declarableUnit :: Declarable Unit where
-  decl = declUnit
-
 else instance declarableEither :: (Declarable a, Declarable b) => Declarable (Either a b) where
   decl = declEither
 
@@ -59,9 +56,6 @@ declSingle e = do
   let build b = bindE name e b
   _ <- modify $ _ { count = count+1, cont = build >>> (eraseType cont) }
   pure $ EVar name
-
-declUnit :: Expr Unit -> ExprBuilder Unit
-declUnit e = pure unit
 
 declEither :: forall a b. Declarable a => Declarable b => Expr (Either a b) -> ExprBuilder (Either a b)
 declEither e = do
