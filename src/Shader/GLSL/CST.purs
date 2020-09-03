@@ -148,10 +148,13 @@ fromExprPrec p (EBind v ty e1 e2)   = CBind (fromType ty) v (fromExpr e1) (fromE
     fromExprBody e@(EBind _ _ _ _) = fromExpr e
     fromExprBody e = CReturn (fromExpr e)
 -- No concrete representation for these types. Handle by elaborating
-fromExprPrec p (ETuple _ _) = crash
-fromExprPrec p (EFst _)     = crash
-fromExprPrec p (ESnd _)     = crash
-fromExprPrec p (EUnit)      = crash
+fromExprPrec p (ETuple _ _)       = crash
+fromExprPrec p (EFst _)           = crash
+fromExprPrec p (ESnd _)           = crash
+fromExprPrec p (EInl _ )          = crash
+fromExprPrec p (EInr _)           = crash
+fromExprPrec p (EUnit)            = crash
+fromExprPrec p (EMatch _ _ _ _ _) = crash
 
 fromType :: Partial => Type -> String
 fromType TBoolean = "bool"
@@ -162,6 +165,7 @@ fromType TComplex = "vec2"
 fromType TColor   = "vec3"
 -- Handle by elaborating
 fromType (TTuple _ _) = crash
+fromType (TEither _ _) = crash
 
 fromUnaryExpr :: Partial => forall a. Int -> UnaryExpr a -> CST
 fromUnaryExpr p (UnNegate e)         = CPrefix "-" (fromExprPrec p e)

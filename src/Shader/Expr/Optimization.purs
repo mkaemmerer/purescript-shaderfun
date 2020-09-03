@@ -28,14 +28,15 @@ constantFold (EBind name ty val body) = EBind name ty (eraseType val') body'
   where
     eraseType = unsafeCoerce
     val' = case ty of
-      TBoolean     -> eraseType $ constantFold $ asBoolean val
-      TScalar      -> eraseType $ constantFold $ asNumber val
-      TVec2        -> eraseType $ constantFold $ asVec2 val
-      TVec3        -> eraseType $ constantFold $ asVec3 val
-      TComplex     -> eraseType $ constantFold $ asComplex val
-      TColor       -> eraseType $ constantFold $ asColor val
-      TUnit        -> eraseType $ constantFold $ asUnit val
-      (TTuple a b) -> val -- Can't optimize
+      TBoolean      -> eraseType $ constantFold $ asBoolean val
+      TScalar       -> eraseType $ constantFold $ asNumber val
+      TVec2         -> eraseType $ constantFold $ asVec2 val
+      TVec3         -> eraseType $ constantFold $ asVec3 val
+      TComplex      -> eraseType $ constantFold $ asComplex val
+      TColor        -> eraseType $ constantFold $ asColor val
+      TUnit         -> eraseType $ constantFold $ asUnit val
+      (TTuple a b)  -> val -- Can't optimize
+      (TEither a b) -> val -- Can't optimize
     body' = constantFold body
 constantFold (EUnary e)  = cFoldWithDefault (EUnary $ constantFoldUnary e)
 constantFold (EBinary e) = cFoldWithDefault (EBinary $ constantFoldBinary e)
@@ -267,14 +268,15 @@ identityFold (EBind name ty val body) = EBind name ty (eraseType val') body'
   where
     eraseType = unsafeCoerce
     val' = case ty of
-      TBoolean     -> eraseType $ identityFold $ asBoolean val
-      TScalar      -> eraseType $ identityFold $ asNumber val
-      TVec2        -> eraseType $ identityFold $ asVec2 val
-      TVec3        -> eraseType $ identityFold $ asVec3 val
-      TComplex     -> eraseType $ identityFold $ asComplex val
-      TColor       -> eraseType $ identityFold $ asColor val
-      TUnit        -> eraseType $ identityFold $ asUnit val
-      (TTuple a b) -> val -- Can't optimize
+      TBoolean      -> eraseType $ identityFold $ asBoolean val
+      TScalar       -> eraseType $ identityFold $ asNumber val
+      TVec2         -> eraseType $ identityFold $ asVec2 val
+      TVec3         -> eraseType $ identityFold $ asVec3 val
+      TComplex      -> eraseType $ identityFold $ asComplex val
+      TColor        -> eraseType $ identityFold $ asColor val
+      TUnit         -> eraseType $ identityFold $ asUnit val
+      (TTuple a b)  -> val -- Can't optimize
+      (TEither a b) -> val -- Can't optimize
     body' = identityFold body
 identityFold (EBinary e) = iFoldWithDefault (EBinary e') e'
   where

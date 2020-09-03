@@ -56,6 +56,9 @@ over t (ETuple a b)       = ETuple (over t a) (over t b)
 over t (EFst tup)         = EFst (over t tup)
 over t (ESnd tup)         = ESnd (over t tup)
 over t (EIf i thn els)    = EIf (over t i) (over t thn) (over t els)
+over t (EInl val)         = EInl (over t val)
+over t (EInr val)         = EInr (over t val)
+over t (EMatch e lname l rname r) = EMatch (over t e) lname (over t l) rname (over t r)
 over t (EBind n ty e1 e2) = EBind n ty (over t e1) (over t e2)
 
 overUnary :: forall a.

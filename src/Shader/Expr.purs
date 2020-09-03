@@ -89,6 +89,7 @@ data Type
   | TColor
   | TUnit
   | TTuple Type Type
+  | TEither Type Type
 
 data UnaryExpr t
   = UnNegate (Expr Number)
@@ -171,6 +172,9 @@ data Expr t
   | ETuple (forall a. Expr a) (forall a. Expr a)
   | EFst (Expr (forall a. Tuple t a))
   | ESnd (Expr (forall a. Tuple a t))
+  | EMatch (Expr (forall a b. Either a b)) String (Expr t) String (Expr t)
+  | EInl (Expr (forall a. Either t a))
+  | EInr (Expr (forall a. Either a t))
   | ECall (CallExpr t)
   | EIf (Expr Boolean) (Expr t) (Expr t)
   | EBind String Type (forall a. Expr a) (Expr t)
@@ -217,6 +221,14 @@ instance typedExprUnit :: TypedExpr Unit where
 
 instance typedExprExprTuple :: (TypedExpr a, TypedExpr b) => TypedExpr (Tuple a b) where
   typeof e = TTuple (typeof $ fst e) (typeof $ snd e)
+
+instance typedExprExprEither :: (TypedExpr a, TypedExpr b) => TypedExpr (Either a b) where
+  typeof e = TEither (typeof $ asLeft e) (typeof $ asRight e)
+    where
+      asLeft :: Expr (Either a b) -> (Expr a)
+      asLeft ex = unsafeCoerce ex
+      asRight :: Expr (Either a b) -> (Expr b)
+      asRight ex = unsafeCoerce ex
 
 -- Unsafe, private constructors
 eraseType :: forall a b. Expr a -> Expr b
@@ -272,27 +284,25 @@ fst t = EFst (eraseType t)
 snd :: forall a b. Expr (Tuple a b) -> Expr b
 snd t = ESnd (eraseType t)
 
--- Encode sum types using product types
--- TODO: can this be generalized with Generics/Type Reps?
--- TODO: make EInl EInr EMatch proper expressions. Handle through elaboration.
 inl :: forall a b. Expr a -> Expr (Either a b)
-inl a = ETuple (eraseType tagLeft) (eraseType a)
+inl a = EInl (eraseType a)
 
 inr :: forall a b. Expr b -> Expr (Either a b)
-inr b = ETuple (eraseType tagRight) (eraseType b)
-
-matchE :: forall a b c. Expr (Either a b) -> (Expr a -> Expr c) -> (Expr b -> Expr c) -> Expr c
-matchE e lBranch rBranch = ifE tag lVal rVal
-  where
-    tag = EFst (eraseType e)
-    lVal = lBranch $ ESnd (eraseType e)
-    rVal = rBranch $ ESnd (eraseType e)
+inr b = EInr (eraseType b)
 
 ifE :: forall a. Expr Boolean -> Expr a -> Expr a -> Expr a
 ifE i t e = EIf i t e
 
 bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
 bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
+
+matchE :: forall a b c. Expr (Either a b) -> String -> (Expr a -> Expr c) -> (Expr b -> Expr c) -> Expr c
+matchE e name lBranch rBranch = EMatch (eraseType e) name_l expr_l name_r expr_r
+  where
+    name_l = name <> "_l"
+    name_r = name <> "_r"
+    expr_l = lBranch (EVar name_l)
+    expr_r = rBranch (EVar name_r)
 
 fromUnit :: Unit -> Expr Unit
 fromUnit _ = EUnit

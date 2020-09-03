@@ -51,7 +51,13 @@ elaborate (EFst (ETuple e1 e2)) = elaborate e1
 elaborate (ESnd (ETuple e1 e2)) = elaborate e2
 elaborate (EFst (EIf i t e)) = EIf (elaborate i) (elaborate $ EFst t) (elaborate $ EFst e)
 elaborate (ESnd (EIf i t e)) = EIf (elaborate i) (elaborate $ ESnd t) (elaborate $ ESnd e)
-elaborate (EIf i t e)        = EIf (elaborate i) (elaborate t) (elaborate e)
+elaborate (EMatch (EInl e) lname l rname r)    = elaborate $ eraseType $ subst lname e $ eraseType l
+elaborate (EMatch (EInr e) lname l rname r)    = elaborate $ eraseType $ subst rname e $ eraseType r
+elaborate (EMatch (EIf i t e) lname l rname r) = EIf (elaborate i) t' e'
+  where
+    t' = (elaborate $ EMatch t lname l rname r)
+    e' = (elaborate $ EMatch e lname l rname r)
+elaborate (EIf i t e) = EIf (elaborate i) (elaborate t) (elaborate e)
 -- Elaborate types
 elaborate (EBind name ty val body) = case ty of
   TBoolean              -> EBind name ty (elaborate val) (elaborate body)
@@ -98,11 +104,16 @@ liftDecl (EUnary e)     = writeDecl $ EUnary   <$> liftDeclUnary e
 liftDecl (EBinary e)    = writeDecl $ EBinary  <$> liftDeclBinary e
 liftDecl (ECall e)      = writeDecl $ ECall    <$> liftDeclCall e
 liftDecl (EIf i t e)    = writeDecl $ EIf      <$> liftDecl i <*> liftDecl t <*> liftDecl e
-liftDecl (EFst e)       = writeDecl $ EFst <$> liftDecl e
-liftDecl (ESnd e)       = writeDecl $ ESnd <$> liftDecl e
 liftDecl (EUnit)        = writeDecl $ pure EUnit
 liftDecl (EBind name ty val body) = (EBind name ty val) <$> liftDecl body
+liftDecl (EFst e)       = writeDecl $ EFst <$> liftDecl e
+liftDecl (ESnd e)       = writeDecl $ ESnd <$> liftDecl e
 liftDecl (ETuple e1 e2) = writeDecl $ (unsafeCoerce ETuple) <$> liftDecl e1 <*> liftDecl e2
+liftDecl (EInl e)       = writeDecl $ EInl <$> liftDecl e
+liftDecl (EInr e)       = writeDecl $ EInr <$> liftDecl e
+liftDecl (EMatch e lname l rname r) = writeDecl $ mkMatch <$> liftDecl e <*> liftDecl l <*> liftDecl r
+  where
+    mkMatch e' l' r' = unsafeCoerce (EMatch e' lname l' rname r')
 
 liftDeclUnary :: Partial => forall a b. UnaryExpr a -> Cont (Expr b) (UnaryExpr a)
 liftDeclUnary = overUnaryA $ fromGenericA liftDecl
