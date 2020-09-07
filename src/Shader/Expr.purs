@@ -11,9 +11,12 @@ module Shader.Expr
   , class HasZ
   , abs
   , atan
+  , ifE
   , bindE
   , matchE
   , recE
+  , loop
+  , done
   , bool
   , color
   , complex
@@ -38,7 +41,6 @@ module Shader.Expr
   , vec2ToComplex
   , gt
   , gte
-  , ifE
   , length
   , log
   , log2
@@ -298,8 +300,8 @@ ifE i t e = EIf i t e
 loop :: forall a. Expr a -> Expr (Either a a)
 loop e = inl e
 
-break :: forall a. Expr a -> Expr (Either a a)
-break e = inr e
+done :: forall a. Expr a -> Expr (Either a a)
+done e = inr e
 
 bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
 bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
@@ -312,8 +314,8 @@ matchE e name lBranch rBranch = EMatch (eraseType e) name_l expr_l name_r expr_r
     expr_l = lBranch (EVar name_l)
     expr_r = rBranch (EVar name_r)
 
-recE :: forall a b. (TypedExpr a) => Int -> String -> Expr a -> (Expr a -> Expr (Either a a)) -> Expr b -> Expr b
-recE n name e1 f e2 = EBindRec n name (typeof e1) (eraseType e1) (eraseType $ f (EVar name)) e2
+recE :: forall a b. (TypedExpr a) => Int -> String -> Expr a -> Expr (Either a a) -> Expr b -> Expr b
+recE n name e1 rec e2 = EBindRec n name (typeof e1) (eraseType e1) (eraseType $ rec) e2
 
 fromUnit :: Unit -> Expr Unit
 fromUnit _ = EUnit

@@ -3,13 +3,13 @@ module Shader.GLSL.CST (CExpr, CStmt, printCST, fromExpr) where
 import Prelude
 
 import Control.Monad.Writer (Writer, runWriter, tell)
-import Data.Array (reverse)
 import Data.Either (Either)
 import Data.Foldable (intercalate)
 import Data.HeytingAlgebra (ff, tt)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
+import Data.String.Utils (startsWith)
 import Partial (crash)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..), matchE)
 import Shader.Expr.Normalization (normalize)
@@ -52,7 +52,7 @@ parens :: String -> String
 parens s = "(" <> s <> ")"
 
 brackets :: String -> String
-brackets s = "{" <> "\n" <> s <> "\n" <> "}" <> "\n"
+brackets s = "{" <> "\n" <> s <> "\n" <> "}"
 
 printCST :: CBlock -> String
 printCST = printBlock
@@ -66,7 +66,7 @@ printStmt (CSAssign name e)   = name <> " = " <> printExpr e <> ";"
 printStmt (CSReturn e)        = "return " <> printExpr e <> ";"
 printStmt (CSIf c t Nothing)  = "if" <> parens (printExpr c) <> brackets (printBlock t)
 printStmt (CSIf c t (Just e)) = "if" <> parens (printExpr c) <> brackets (printBlock t) <> "else" <> brackets (printBlock e)
-printStmt (CSLoop bound s)    = "for(int i=0; i<" <> (show bound) <> "; i++)" <> brackets (printBlock s)
+printStmt (CSLoop bound s)    = "\n" <> "for(int i=0; i<" <> (show bound) <> "; i++)" <> brackets (printBlock s) <> "\n"
 printStmt (CSBreak)           = "break;"
 
 printExpr :: CExpr -> String
@@ -158,7 +158,7 @@ type CSTWriter a = Writer CBlock a
 -- Partial functions reference the fact that not all expressions in the grammar are well typed.
 -- Should (knock on wood) still be a total functions over well typed expressions
 fromExpr :: Partial => forall a. Expr a -> CBlock
-fromExpr e = (reverse block) <> [CSReturn expr]
+fromExpr e = block <> [CSReturn expr]
   where
     (Tuple expr block) = runWriter $ fromExprTop e
 
@@ -187,18 +187,18 @@ fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
     mkIf q = CEIf <$> fromExprPrec q i <*> fromExprPrec q t <*> fromExprPrec q e
 fromExprPrec p (EBind v ty e1 e2) = do
   e1' <- fromExprTop e1
-  e2' <- fromExprTop e2
   tell $ [CSDecl (fromType ty) v e1']
+  e2' <- fromExprTop e2
   pure e2'
 fromExprPrec p (EBindRec n v ty e1 loop e2) = fromRecExpr n v ty e1 loop e2
 -- No concrete representation for these types. Handle by elaborating
-fromExprPrec p (ETuple _ _)       = crash
-fromExprPrec p (EFst _)           = crash
-fromExprPrec p (ESnd _)           = crash
-fromExprPrec p (EInl _ )          = crash
-fromExprPrec p (EInr _)           = crash
-fromExprPrec p (EUnit)            = crash
-fromExprPrec p (EMatch _ _ _ _ _) = crash
+fromExprPrec p (ETuple _ _)       = pure (CEVar "TUPLE") -- crash
+fromExprPrec p (EFst _)           = pure (CEVar "FST") -- crash
+fromExprPrec p (ESnd _)           = pure (CEVar "SND") -- crash
+fromExprPrec p (EInl _ )          = pure (CEVar "INL") -- crash
+fromExprPrec p (EInr _)           = pure (CEVar "INR") -- crash
+fromExprPrec p (EUnit)            = pure (CEVar "UNIT") -- crash
+fromExprPrec p (EMatch _ _ _ _ _) = pure (CEVar "MATCH") -- crash
 
 fromType :: Partial => Type -> String
 fromType TBoolean = "bool"
@@ -279,6 +279,7 @@ fromCallExpr (FnDotC e1 e2)          = CECall "dot"        <$> sequence [fromExp
 fromCallExpr (FnReflectV2 e1 e2)     = CECall "reflect"    <$> sequence [fromExprTop e1, fromExprTop e2]
 fromCallExpr (FnReflectV3 e1 e2)     = CECall "reflect"    <$> sequence [fromExprTop e1, fromExprTop e2]
 
+-- TODO: I don't like how complicated this is
 fromRecExpr :: Partial => forall a b c. Int -> String -> Type -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
 fromRecExpr n v ty e1 loop e2 = do
   _ <- fromExprTop $ normalize e1'
@@ -287,13 +288,12 @@ fromRecExpr n v ty e1 loop e2 = do
   where
     eraseType :: forall a b. Expr a -> Expr b
     eraseType = unsafeCoerce
-    tag   = v <> "_tag"
-    e1'   = EBind v ty (eraseType e1) (EVar v)
-    loop' = EBind v ty (eraseType loop) $ EBind tag TBoolean (eraseType $ eitherToBool (EVar v)) $ (EVar tag)
-    e2'   = EBind v ty (EVar v) e2
+    e1'   = EBind v ty (eraseType e1) EUnit
+    loop' = EBind v ty (EVar v) $ EBind v ty (eraseType loop) $ eitherToBool (eraseType loop)
+    e2'   = EBind v ty (EVar v) $ e2
 
 fromLoopBody :: Partial => String -> Expr Boolean -> CBlock
-fromLoopBody v e = (reverse $ convertDecl v <$> block) <> [CSIf expr [CSBreak] Nothing]
+fromLoopBody v e = (convertDecl v <$> block) <> [CSIf expr [CSBreak] Nothing]
   where
     (Tuple expr block) = runWriter $ fromExprTop e
 
@@ -302,8 +302,9 @@ eitherToBool e = matchE e "" (const tt) (const ff)
 
 convertDecl :: String -> CStmt -> CStmt
 convertDecl v (CSDecl ty n e)
-  | v == n    = CSAssign n e
-  | otherwise = CSDecl ty n e
+  | v == n                   = CSAssign n e
+  | startsWith (v <> "_") n  = CSAssign n e
+  | otherwise                = CSDecl ty n e
 convertDecl v (CSAssign n e)     = CSAssign n e
 convertDecl v (CSReturn e)       = CSReturn e
 convertDecl v (CSIf i thn els)   = CSIf i (convertDecl v <$> thn) ((liftA1 $ convertDecl v) <$> els)

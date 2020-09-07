@@ -5,6 +5,7 @@ module Shader.ExprBuilder
   , ShaderFunc
   , decl
   , match
+  , rec
   , runExprBuilder
   , type (|>)
   ) where
@@ -33,31 +34,45 @@ emptyState = { count: 0, cont: identity }
 eraseType :: forall a b. (a -> a) -> (b -> b)
 eraseType = unsafeCoerce
 
+newVar :: Builder String
+newVar = do
+  { count } <- get
+  let name = "v_" <> show count
+  _ <- modify $ _ { count = count+1 }
+  pure name
+
 -- | `decl` yields an expression which is semantically equivalent
 -- | but could be more operationally efficient.
 -- | Use `decl` to avoid reevaluating common sub expressions.
 decl :: forall t. (TypedExpr t) => Expr t -> ExprBuilder t
 decl e = do
-  { count, cont } <- get
-  let name = "v_" <> show count
+  name <- newVar
   let build b = bindE name e b
-  _ <- modify $ _ { count = count+1, cont = build >>> (eraseType cont) }
+  { cont } <- get
+  _ <- modify $ _ { cont = build >>> (eraseType cont) }
   pure $ EVar name
 
 match :: forall a b c. Expr (Either a b) -> (Expr a -> Expr c) -> (Expr b -> Expr c) -> ExprBuilder c
 match e l r = do
-  { count } <- get
-  let name = "v_" <> show count
-  _ <- modify $ _ { count = count+1 }
+  name <- newVar
   pure $ matchE e name l r
 
-rec :: forall t. (TypedExpr t) => Int -> (Expr t -> Expr (Either t t)) -> Expr t -> ExprBuilder t
+rec :: forall t. (TypedExpr t) => Int -> (Expr t -> ExprBuilder (Either t t)) -> Expr t -> ExprBuilder t
 rec n f seed = do
-  { count, cont } <- get
-  let name = "v_" <> show count
-  let build b = recE n name seed f b
-  _ <- modify $ _ { count = count+1, cont = build >>> (eraseType cont) }
+  name <- newVar
+  loop <- buildSubroutine $ f $ EVar name
+  { cont } <- get
+  let build b = recE n name seed loop b
+  _ <- modify $ _ { cont = build >>> (eraseType cont) }
   pure $ EVar name
+
+buildSubroutine :: forall t. ExprBuilder t -> ExprBuilder t
+buildSubroutine b = do
+  { count } <- get
+  let Tuple e { count: count', cont } = runState b { count, cont: identity }
+  let e' = cont e
+  _ <- modify $ _ { count = count' }
+  pure e'
 
 -- | Run an expression builder and yield the result
 runExprBuilder :: forall t. ExprBuilder t -> Expr t
