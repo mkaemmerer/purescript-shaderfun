@@ -5,7 +5,7 @@ import Prelude
 import Control.Monad.Cont (Cont, runCont, callCC)
 import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafePartial)
-import Shader.Expr (class TypedExpr, BinaryExpr(..), CallExpr, Expr(..), Type(..), UnaryExpr, complex, fst, projImaginary, projReal, snd, tuple)
+import Shader.Expr (BinaryExpr(..), CallExpr, Expr(..), Type(..), UnaryExpr, complex, fst, projImaginary, projReal, snd, tuple)
 import Shader.Expr.Cast (asBoolean, asColor, asComplex, asNumber, asVec2, asVec3)
 import Shader.Expr.Traversal (fromGeneric, fromGenericA, over, overBinaryA, overCallA, overUnaryA)
 import Unsafe.Coerce (unsafeCoerce)
@@ -27,7 +27,7 @@ subst v e1 e2 = over traversal e2
     }
 
 
-normalize :: forall a. TypedExpr a => Expr a -> Expr a
+normalize :: forall a. Expr a -> Expr a
 normalize = unsafePartial $ liftDecls >>> elaborate
 
 
@@ -49,14 +49,14 @@ elaborate (EBinary (BinDivC c1 c2)) = eraseType $ complex nr ni
   d  = r2*r2 + i2*i2
 elaborate (EFst (ETuple e1 e2)) = elaborate e1
 elaborate (ESnd (ETuple e1 e2)) = elaborate e2
-elaborate (EFst (EIf i t e)) = EIf (elaborate i) (elaborate $ EFst t) (elaborate $ EFst e)
-elaborate (ESnd (EIf i t e)) = EIf (elaborate i) (elaborate $ ESnd t) (elaborate $ ESnd e)
+elaborate (EFst (EIf i t e))    = elaborate $ EIf i (EFst t) (EFst e)
+elaborate (ESnd (EIf i t e))    = elaborate $ EIf i (ESnd t) (ESnd e)
 elaborate (EMatch (EInl e) lname l rname r)    = elaborate $ eraseType $ subst lname e $ eraseType l
 elaborate (EMatch (EInr e) lname l rname r)    = elaborate $ eraseType $ subst rname e $ eraseType r
-elaborate (EMatch (EIf i t e) lname l rname r) = EIf (elaborate i) t' e'
+elaborate (EMatch (EIf i t e) lname l rname r) = elaborate $ EIf i t' e'
   where
-    t' = (elaborate $ EMatch t lname l rname r)
-    e' = (elaborate $ EMatch e lname l rname r)
+    t' = EMatch t lname l rname r
+    e' = EMatch e lname l rname r
 elaborate (EIf i t e) = EIf (elaborate i) (elaborate t) (elaborate e)
 -- Elaborate types
 elaborate (EBind name ty val body) = case ty of
@@ -113,10 +113,13 @@ liftDecl (EInr e)       = writeDecl $ EInr <$> liftDecl e
 liftDecl (EMatch e lname l rname r) = writeDecl $ mkMatch <$> liftDecl e <*> liftDecl l <*> liftDecl r
   where
     mkMatch e' l' r' = unsafeCoerce (EMatch e' lname l' rname r')
-liftDecl (ERec n seed name loop) = mkRec <$> liftDecl seed <*> liftDecl loop
+liftDecl (EBind name ty e1 e2) = mkBind <$> liftDecl e2
   where
-    mkRec seed' loop' = ERec n seed' name loop'
-liftDecl (EBind name ty val body) = (EBind name ty val) <$> liftDecl body
+    mkBind e2' = (EBind name ty e1 e2')
+liftDecl (EBindRec n name ty e1 loop e2) = mkRec <$> liftDecl e2
+  where
+    mkRec e2' = EBindRec n name ty e1 loop' e2'
+    loop'     = liftDecls $ eraseType loop
 
 liftDeclUnary :: forall a b. UnaryExpr a -> Cont (Expr b) (UnaryExpr a)
 liftDeclUnary e = overUnaryA (fromGenericA liftDecl) e

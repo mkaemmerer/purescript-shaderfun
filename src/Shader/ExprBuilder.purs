@@ -55,7 +55,7 @@ rec :: forall t. (TypedExpr t) => Int -> (Expr t -> Expr (Either t t)) -> Expr t
 rec n f seed = do
   { count, cont } <- get
   let name = "v_" <> show count
-  let build b = bindE name (recE n seed name f) b
+  let build b = recE n name seed f b
   _ <- modify $ _ { count = count+1, cont = build >>> (eraseType cont) }
   pure $ EVar name
 

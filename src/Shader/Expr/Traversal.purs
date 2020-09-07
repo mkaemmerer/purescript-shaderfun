@@ -1,5 +1,6 @@
 module Shader.Expr.Traversal
   ( over
+  , overTyped
   , overUnary
   , overBinary
   , overCall
@@ -18,8 +19,12 @@ import Data.Color (Color)
 import Data.Complex (Complex)
 import Data.Vec2 (Vec2)
 import Data.Vec3 (Vec3)
-import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..))
+import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
+import Shader.Expr.Cast (asBoolean, asColor, asComplex, asNumber, asVec2, asVec3)
+import Unsafe.Coerce (unsafeCoerce)
 
+eraseType :: forall a b. Expr a -> Expr b
+eraseType = unsafeCoerce
 
 type Traversal = {
   onBool    :: Expr Boolean -> Expr Boolean,
@@ -58,9 +63,20 @@ over t (ESnd tup)         = ESnd (over t tup)
 over t (EIf i thn els)    = EIf (over t i) (over t thn) (over t els)
 over t (EInl val)         = EInl (over t val)
 over t (EInr val)         = EInr (over t val)
-over t (EMatch e lname l rname r) = EMatch (over t e) lname (over t l) rname (over t r)
-over t (ERec n seed name loop)    = ERec n (over t seed) name (over t loop)
-over t (EBind n ty e1 e2) = EBind n ty (over t e1) (over t e2)
+over t (EMatch e lname l rname r)      = EMatch (over t e) lname (over t l) rname (over t r)
+over t (EBind name ty e1 e2)           = EBind name ty (over t e1) (over t e2)
+over t (EBindRec n name ty e1 loop e2) = EBindRec n name ty (over t e1) (over t loop) (over t e2)
+
+overTyped :: forall a. Traversal -> Type -> Expr a -> Expr a
+overTyped t TBoolean      e = eraseType $ t.onBool $ asBoolean e
+overTyped t TScalar       e = eraseType $ t.onNum $ asNumber e
+overTyped t TVec2         e = eraseType $ t.onVec2 $ asVec2 e
+overTyped t TVec3         e = eraseType $ t.onVec3 $ asVec3 e
+overTyped t TComplex      e = eraseType $ t.onComplex $ asComplex e
+overTyped t TColor        e = eraseType $ t.onColor $ asColor e
+overTyped t TUnit         e = e -- Nothing to optimize
+overTyped t (TTuple a b)  e = e -- Can't optimize
+overTyped t (TEither a b) e = e -- Can't optimize
 
 overUnary :: forall a.
   Traversal ->

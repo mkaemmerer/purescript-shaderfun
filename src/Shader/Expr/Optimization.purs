@@ -15,34 +15,35 @@ import Data.Vec3 (Vec3(..))
 import Data.VectorSpace (magnitude, zeroV, (*^), (<.>), (^+^), (^-^))
 import Math (atan2, cos, log, log2e, pow, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
-import Shader.Expr.Cast (class Castable, asBoolean, asColor, asComplex, asNumber, asUnit, asVec2, asVec3, cast)
-import Shader.Expr.Traversal (Traversal, over, overBinary, overCall, overUnary)
+import Shader.Expr.Cast (class Castable, cast)
+import Shader.Expr.Traversal (Traversal, over, overBinary, overCall, overTyped, overUnary)
 import Unsafe.Coerce (unsafeCoerce)
+
+eraseType :: forall a b. Expr a -> Expr b
+eraseType = unsafeCoerce
 
 -------------------------------------------------------------------------------
 -- Constant Folding
 -------------------------------------------------------------------------------
 
 constantFold :: forall a. ConstantFold a => Expr a -> Expr a
-constantFold (EBind name ty val body) = EBind name ty (eraseType val') body'
+constantFold (EBind name ty e1 e2) = EBind name ty (eraseType e1') e2'
   where
-    eraseType = unsafeCoerce
-    val' = case ty of
-      TBoolean      -> eraseType $ constantFold $ asBoolean val
-      TScalar       -> eraseType $ constantFold $ asNumber val
-      TVec2         -> eraseType $ constantFold $ asVec2 val
-      TVec3         -> eraseType $ constantFold $ asVec3 val
-      TComplex      -> eraseType $ constantFold $ asComplex val
-      TColor        -> eraseType $ constantFold $ asColor val
-      TUnit         -> eraseType $ constantFold $ asUnit val
-      (TTuple a b)  -> val -- Can't optimize
-      (TEither a b) -> val -- Can't optimize
-    body' = constantFold body
+    e1' = constantFoldWithType ty e1
+    e2' = constantFold e2
+constantFold (EBindRec n name ty e1 loop e2) = EBindRec n name ty (eraseType e1') (eraseType loop') e2'
+  where
+    e1'   = constantFoldWithType ty e1
+    loop' = constantFoldWithType (TEither ty ty) loop
+    e2'   = constantFold e2
 constantFold (EUnary e)  = cFoldWithDefault (EUnary $ constantFoldUnary e)
 constantFold (EBinary e) = cFoldWithDefault (EBinary $ constantFoldBinary e)
 constantFold (ECall e)   = cFoldWithDefault (ECall $ constantFoldCall e)
 constantFold (EIf i t e) = EIf (constantFold i) (constantFold t) (constantFold e)
 constantFold e = cFoldWithDefault e
+
+constantFoldWithType :: forall a. Type -> Expr a -> Expr a
+constantFoldWithType ty e = overTyped (constantFoldTraversal unit) ty e
 
 cFoldWithDefault :: forall a. ConstantFold a => Expr a -> Expr a
 cFoldWithDefault e = maybe e identity (cFold e)
@@ -264,26 +265,24 @@ cFoldDefault e = cast <$> toConst e
 -------------------------------------------------------------------------------
 
 identityFold :: forall a. IdentityFold a => Expr a -> Expr a
-identityFold (EBind name ty val body) = EBind name ty (eraseType val') body'
+identityFold (EBind name ty e1 e2) = EBind name ty (eraseType e1') e2'
   where
-    eraseType = unsafeCoerce
-    val' = case ty of
-      TBoolean      -> eraseType $ identityFold $ asBoolean val
-      TScalar       -> eraseType $ identityFold $ asNumber val
-      TVec2         -> eraseType $ identityFold $ asVec2 val
-      TVec3         -> eraseType $ identityFold $ asVec3 val
-      TComplex      -> eraseType $ identityFold $ asComplex val
-      TColor        -> eraseType $ identityFold $ asColor val
-      TUnit         -> eraseType $ identityFold $ asUnit val
-      (TTuple a b)  -> val -- Can't optimize
-      (TEither a b) -> val -- Can't optimize
-    body' = identityFold body
+    e1' = identityFoldWithType ty e1
+    e2' = identityFold e2
+identityFold (EBindRec n name ty e1 loop e2) = EBindRec n name ty (eraseType e1') (eraseType loop') e2'
+  where
+    e1'   = identityFoldWithType ty e1
+    loop' = identityFoldWithType (TEither ty ty) loop
+    e2'   = identityFold e2
 identityFold (EBinary e) = iFoldWithDefault (EBinary e') e'
   where
     e' = identityFoldBinary e
     iFold ex = iFoldL ex <|> iFoldR ex
     iFoldWithDefault d ex = maybe d identity (iFold ex)
 identityFold e = over (identityFoldTraversal unit) e
+
+identityFoldWithType :: forall a. Type -> Expr a -> Expr a
+identityFoldWithType ty e = overTyped (identityFoldTraversal unit) ty e
 
 identityFoldTraversal :: Unit -> Traversal
 identityFoldTraversal _ = {

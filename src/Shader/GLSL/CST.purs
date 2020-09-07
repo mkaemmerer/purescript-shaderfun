@@ -4,12 +4,16 @@ import Prelude
 
 import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.Array (reverse)
+import Data.Either (Either)
 import Data.Foldable (intercalate)
+import Data.HeytingAlgebra (ff, tt)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
 import Partial (crash)
-import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
+import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..), matchE)
+import Shader.Expr.Normalization (normalize)
+import Unsafe.Coerce (unsafeCoerce)
 
 type UnaryOp  = String
 type BinaryOp = String
@@ -17,7 +21,8 @@ type GLSLFn   = String
 type GLSLType = String
 
 data CStmt
-  = CSBind GLSLType String CExpr
+  = CSDecl GLSLType String CExpr
+  | CSAssign String CExpr
   | CSReturn CExpr
   | CSIf CExpr CBlock (Maybe CBlock)
   | CSLoop Int CBlock
@@ -56,7 +61,8 @@ printBlock :: CBlock -> String
 printBlock ss = intercalate "\n" $ printStmt <$> ss
 
 printStmt :: CStmt -> String
-printStmt (CSBind ty name e)  = ty <> " " <> name <> " = " <> printExpr e <> ";"
+printStmt (CSDecl ty name e)  = ty <> " " <> name <> " = " <> printExpr e <> ";"
+printStmt (CSAssign name e)   = name <> " = " <> printExpr e <> ";"
 printStmt (CSReturn e)        = "return " <> printExpr e <> ";"
 printStmt (CSIf c t Nothing)  = "if" <> parens (printExpr c) <> brackets (printBlock t)
 printStmt (CSIf c t (Just e)) = "if" <> parens (printExpr c) <> brackets (printBlock t) <> "else" <> brackets (printBlock e)
@@ -180,10 +186,11 @@ fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
   where
     mkIf q = CEIf <$> fromExprPrec q i <*> fromExprPrec q t <*> fromExprPrec q e
 fromExprPrec p (EBind v ty e1 e2) = do
-    e1' <- fromExprTop e1
-    e2' <- fromExprTop e2
-    tell $ [CSBind (fromType ty) v e1']
-    pure e2'
+  e1' <- fromExprTop e1
+  e2' <- fromExprTop e2
+  tell $ [CSDecl (fromType ty) v e1']
+  pure e2'
+fromExprPrec p (EBindRec n v ty e1 loop e2) = fromRecExpr n v ty e1 loop e2
 -- No concrete representation for these types. Handle by elaborating
 fromExprPrec p (ETuple _ _)       = crash
 fromExprPrec p (EFst _)           = crash
@@ -271,3 +278,34 @@ fromCallExpr (FnDotV3 e1 e2)         = CECall "dot"        <$> sequence [fromExp
 fromCallExpr (FnDotC e1 e2)          = CECall "dot"        <$> sequence [fromExprTop e1, fromExprTop e2]
 fromCallExpr (FnReflectV2 e1 e2)     = CECall "reflect"    <$> sequence [fromExprTop e1, fromExprTop e2]
 fromCallExpr (FnReflectV3 e1 e2)     = CECall "reflect"    <$> sequence [fromExprTop e1, fromExprTop e2]
+
+fromRecExpr :: Partial => forall a b c. Int -> String -> Type -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
+fromRecExpr n v ty e1 loop e2 = do
+  _ <- fromExprTop $ normalize e1'
+  tell $ [CSLoop n $ fromLoopBody v (normalize loop')]
+  fromExprTop $ normalize e2'
+  where
+    eraseType :: forall a b. Expr a -> Expr b
+    eraseType = unsafeCoerce
+    tag   = v <> "_tag"
+    e1'   = EBind v ty (eraseType e1) (EVar v)
+    loop' = EBind v ty (eraseType loop) $ EBind tag TBoolean (eraseType $ eitherToBool (EVar v)) $ (EVar tag)
+    e2'   = EBind v ty (EVar v) e2
+
+fromLoopBody :: Partial => String -> Expr Boolean -> CBlock
+fromLoopBody v e = (reverse $ convertDecl v <$> block) <> [CSIf expr [CSBreak] Nothing]
+  where
+    (Tuple expr block) = runWriter $ fromExprTop e
+
+eitherToBool :: forall a b. Expr (Either a b) -> Expr Boolean
+eitherToBool e = matchE e "" (const tt) (const ff)
+
+convertDecl :: String -> CStmt -> CStmt
+convertDecl v (CSDecl ty n e)
+  | v == n    = CSAssign n e
+  | otherwise = CSDecl ty n e
+convertDecl v (CSAssign n e)     = CSAssign n e
+convertDecl v (CSReturn e)       = CSReturn e
+convertDecl v (CSIf i thn els)   = CSIf i (convertDecl v <$> thn) ((liftA1 $ convertDecl v) <$> els)
+convertDecl v (CSLoop n block)   = CSLoop n (convertDecl v <$> block)
+convertDecl v (CSBreak)          = CSBreak
