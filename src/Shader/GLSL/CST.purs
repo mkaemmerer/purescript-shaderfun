@@ -289,8 +289,15 @@ fromRecExpr n v ty e1 loop e2 = do
     eraseType :: forall a b. Expr a -> Expr b
     eraseType = unsafeCoerce
     e1'   = EBind v ty (eraseType e1) EUnit
-    loop' = EBind v ty (EVar v) $ EBind v ty (eraseType loop) $ eitherToBool (eraseType loop)
-    e2'   = EBind v ty (EVar v) $ e2
+    loop' = EBind v ty (EVar v)               -- Dummy declaration so that elaboration kicks in. TODO: need to clear these from output
+      $ EBind v ty (fromIso $ eraseType loop) -- Actual loop update
+      $ eitherToBool (base $ eraseType loop)  -- Loop break statement
+    e2'   = EBind v ty (EVar v)               -- Dummy declaration so that elaboration kicks in. TODO: need to clear these from output
+      $ e2                                    -- bound expressiono after the loop
+
+base :: forall a. Expr a -> Expr a
+base (EBind _ _ _ e2) = base e2
+base e = e
 
 fromLoopBody :: Partial => String -> Expr Boolean -> CBlock
 fromLoopBody v e = (convertDecl v <$> block) <> [CSIf expr [CSBreak] Nothing]
@@ -298,7 +305,10 @@ fromLoopBody v e = (convertDecl v <$> block) <> [CSIf expr [CSBreak] Nothing]
     (Tuple expr block) = runWriter $ fromExprTop e
 
 eitherToBool :: forall a b. Expr (Either a b) -> Expr Boolean
-eitherToBool e = matchE e "" (const tt) (const ff)
+eitherToBool e = matchE e "" (const ff) (const tt)
+
+fromIso :: forall a. Expr (Either a a) -> Expr a
+fromIso e = matchE e "" identity identity
 
 convertDecl :: String -> CStmt -> CStmt
 convertDecl v (CSDecl ty n e)

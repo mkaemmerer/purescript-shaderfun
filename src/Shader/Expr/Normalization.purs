@@ -62,11 +62,14 @@ elaborate (EBind name ty e1 e2) = case ty of
       e2'      = subst name (eraseType tup) e2
 elaborate e = on elaborate e
 
+-- TODO: not sure this fully simplifies all cases. I.e. Inl Inr?
 simplify :: forall a. Expr a -> Expr a
 simplify (EFst (ETuple e1 e2))                = simplify e1
 simplify (ESnd (ETuple e1 e2))                = simplify e2
 simplify (EFst (EIf i t e))                   = simplify $ EIf i (EFst t) (EFst e)
 simplify (ESnd (EIf i t e))                   = simplify $ EIf i (ESnd t) (ESnd e)
+simplify (EFst (EMatch e lname l rname r))    = simplify $ EMatch e lname (EFst l) rname (EFst r)
+simplify (ESnd (EMatch e lname l rname r))    = simplify $ EMatch e lname (ESnd l) rname (ESnd r)
 simplify (EMatch (EInl e) lname l rname r)    = simplify $ eraseType $ subst lname e (eraseType l)
 simplify (EMatch (EInr e) lname l rname r)    = simplify $ eraseType $ subst rname e (eraseType r)
 simplify (EMatch (EIf i t e) lname l rname r) = simplify $ EIf i t' e'
