@@ -1,5 +1,6 @@
 module Shader.Expr.Traversal
-  ( over
+  ( on
+  , over
   , overTyped
   , overUnary
   , overBinary
@@ -45,6 +46,38 @@ fromGeneric f = {
   onColor:   f
 }
 
+on :: forall a. (forall b. Expr b -> Expr b) -> Expr a -> Expr a
+on f (EVar n)           = EVar n
+on f (EBool b)          = EBool b
+on f (ENum n)           = ENum n
+on f (EVec2 x y)        = EVec2 (f x) (f y)
+on f (EVec3 x y z)      = EVec3 (f x) (f y) (f z)
+on f (EComplex r i)     = EComplex (f r) (f i)
+on f (EColor r g b)     = EColor (f r) (f g) (f b)
+on f (EUnary e)         = EUnary $ onUnary f e
+on f (EBinary e)        = EBinary $ onBinary f e
+on f (ECall e)          = ECall $ onCall f e
+on f (EUnit)            = EUnit
+on f (ETuple a b)       = ETuple (f a) (f b)
+on f (EFst tup)         = EFst (f tup)
+on f (ESnd tup)         = ESnd (f tup)
+on f (EIf i thn els)    = EIf (f i) (f thn) (f els)
+on f (EInl val)         = EInl (f val)
+on f (EInr val)         = EInr (f val)
+on f (EMatch e lname l rname r)      = EMatch (f e) lname (f l) rname (f r)
+on f (EBind name ty e1 e2)           = EBind name ty (f e1) (f e2)
+on f (EBindRec n name ty e1 loop e2) = EBindRec n name ty (f e1) (f loop) (f e2)
+
+onUnary :: forall a. (forall b. Expr b -> Expr b) -> UnaryExpr a -> UnaryExpr a
+onUnary f = overUnary (fromGeneric f)
+
+onBinary :: forall a. (forall b. Expr b -> Expr b) -> BinaryExpr a -> BinaryExpr a
+onBinary f = overBinary (fromGeneric f)
+
+onCall :: forall a. (forall b. Expr b -> Expr b) -> CallExpr a -> CallExpr a
+onCall f = overCall (fromGeneric f)
+
+
 over :: forall a. Traversal -> Expr a -> Expr a
 over t (EVar n)           = EVar n
 over t (EBool b)          = EBool b
@@ -68,12 +101,12 @@ over t (EBind name ty e1 e2)           = EBind name ty (over t e1) (over t e2)
 over t (EBindRec n name ty e1 loop e2) = EBindRec n name ty (over t e1) (over t loop) (over t e2)
 
 overTyped :: forall a. Traversal -> Type -> Expr a -> Expr a
-overTyped t TBoolean      e = eraseType $ t.onBool $ asBoolean e
-overTyped t TScalar       e = eraseType $ t.onNum $ asNumber e
-overTyped t TVec2         e = eraseType $ t.onVec2 $ asVec2 e
-overTyped t TVec3         e = eraseType $ t.onVec3 $ asVec3 e
+overTyped t TBoolean      e = eraseType $ t.onBool    $ asBoolean e
+overTyped t TScalar       e = eraseType $ t.onNum     $ asNumber e
+overTyped t TVec2         e = eraseType $ t.onVec2    $ asVec2 e
+overTyped t TVec3         e = eraseType $ t.onVec3    $ asVec3 e
 overTyped t TComplex      e = eraseType $ t.onComplex $ asComplex e
-overTyped t TColor        e = eraseType $ t.onColor $ asColor e
+overTyped t TColor        e = eraseType $ t.onColor   $ asColor e
 overTyped t TUnit         e = e -- Nothing to optimize
 overTyped t (TTuple a b)  e = e -- Can't optimize
 overTyped t (TEither a b) e = e -- Can't optimize
