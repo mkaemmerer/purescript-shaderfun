@@ -7,12 +7,15 @@ import Data.Either (Either)
 import Data.Foldable (intercalate)
 import Data.HeytingAlgebra (ff, tt)
 import Data.Maybe (Maybe(..))
+import Data.Monoid.Disj (Disj(..))
+import Data.Newtype (unwrap)
+import Data.String.Utils (startsWith)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
-import Data.String.Utils (startsWith)
 import Partial (crash)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..), matchE)
 import Shader.Expr.Normalization (normalize)
+import Shader.Expr.Traversal (foldVars)
 import Unsafe.Coerce (unsafeCoerce)
 
 type UnaryOp  = String
@@ -192,13 +195,13 @@ fromExprPrec p (EBind v ty e1 e2) = do
   pure e2'
 fromExprPrec p (EBindRec n v ty e1 loop e2) = fromRecExpr n v ty e1 loop e2
 -- No concrete representation for these types. Handle by elaborating
-fromExprPrec p (ETuple _ _)       = pure (CEVar "TUPLE") -- crash
-fromExprPrec p (EFst _)           = pure (CEVar "FST") -- crash
-fromExprPrec p (ESnd _)           = pure (CEVar "SND") -- crash
-fromExprPrec p (EInl _ )          = pure (CEVar "INL") -- crash
-fromExprPrec p (EInr _)           = pure (CEVar "INR") -- crash
-fromExprPrec p (EUnit)            = pure (CEVar "UNIT") -- crash
-fromExprPrec p (EMatch _ _ _ _ _) = pure (CEVar "MATCH") -- crash
+fromExprPrec p (ETuple _ _)       = crash
+fromExprPrec p (EFst _)           = crash
+fromExprPrec p (ESnd _)           = crash
+fromExprPrec p (EInl _ )          = crash
+fromExprPrec p (EInr _)           = crash
+fromExprPrec p (EUnit)            = crash
+fromExprPrec p (EMatch _ _ _ _ _) = crash
 
 fromType :: Partial => Type -> String
 fromType TBoolean = "bool"
@@ -283,21 +286,29 @@ fromCallExpr (FnReflectV3 e1 e2)     = CECall "reflect"    <$> sequence [fromExp
 fromRecExpr :: Partial => forall a b c. Int -> String -> Type -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
 fromRecExpr n v ty e1 loop e2 = do
   _ <- fromExprTop $ normalize e1'
-  tell $ [CSLoop n $ fromLoopBody v (normalize loop')]
-  fromExprTop $ normalize e2'
+  tell $ [CSLoop n $ fromLoopBody v (removeFakes $ normalize loop')]
+  fromExprTop $ removeFakes $ normalize e2'
   where
+    e1'   = EBind v ty (eraseType e1) (EVar "fake")
+    loop' = EBind v ty (EVar "fake")                -- Dummy declaration so that elaboration kicks in.
+      $ EBind v ty (fromIso $ eraseType loop)       -- Actual loop update
+      $ eitherToBool (resultExpr $ eraseType loop)  -- Loop break statement
+    e2'   = EBind v ty (EVar "fake")                -- Dummy declaration so that elaboration kicks in.
+      $ e2                                          -- bound expression after the loop
     eraseType :: forall a b. Expr a -> Expr b
     eraseType = unsafeCoerce
-    e1'   = EBind v ty (eraseType e1) EUnit
-    loop' = EBind v ty (EVar v)               -- Dummy declaration so that elaboration kicks in. TODO: need to clear these from output
-      $ EBind v ty (fromIso $ eraseType loop) -- Actual loop update
-      $ eitherToBool (base $ eraseType loop)  -- Loop break statement
-    e2'   = EBind v ty (EVar v)               -- Dummy declaration so that elaboration kicks in. TODO: need to clear these from output
-      $ e2                                    -- bound expressiono after the loop
+    removeFakes :: forall a. Expr a -> Expr a
+    removeFakes e@(EBind _ _ ex1 ex2)
+      | hasVar "fake" ex1 = removeFakes ex2
+      | otherwise         = e
+    removeFakes e = e
 
-base :: forall a. Expr a -> Expr a
-base (EBind _ _ _ e2) = base e2
-base e = e
+resultExpr :: forall a. Expr a -> Expr a
+resultExpr (EBind _ _ _ e2) = resultExpr e2
+resultExpr e = e
+
+hasVar :: forall a. String -> Expr a -> Boolean
+hasVar v e = unwrap $ foldVars (Disj <$> (_ == v)) e
 
 fromLoopBody :: Partial => String -> Expr Boolean -> CBlock
 fromLoopBody v e = (convertDecl v <$> block) <> [CSIf expr [CSBreak] Nothing]
@@ -312,11 +323,11 @@ fromIso e = matchE e "" identity identity
 
 convertDecl :: String -> CStmt -> CStmt
 convertDecl v (CSDecl ty n e)
-  | v == n                   = CSAssign n e
-  | startsWith (v <> "_") n  = CSAssign n e
-  | otherwise                = CSDecl ty n e
-convertDecl v (CSAssign n e)     = CSAssign n e
-convertDecl v (CSReturn e)       = CSReturn e
-convertDecl v (CSIf i thn els)   = CSIf i (convertDecl v <$> thn) ((liftA1 $ convertDecl v) <$> els)
-convertDecl v (CSLoop n block)   = CSLoop n (convertDecl v <$> block)
-convertDecl v (CSBreak)          = CSBreak
+  | v == n                     = CSAssign n e
+  | startsWith (v <> "_") n    = CSAssign n e
+  | otherwise                  = CSDecl ty n e
+convertDecl v (CSAssign n e)   = CSAssign n e
+convertDecl v (CSReturn e)     = CSReturn e
+convertDecl v (CSIf i thn els) = CSIf i (convertDecl v <$> thn) ((liftA1 $ convertDecl v) <$> els)
+convertDecl v (CSLoop n block) = CSLoop n (convertDecl v <$> block)
+convertDecl v (CSBreak)        = CSBreak

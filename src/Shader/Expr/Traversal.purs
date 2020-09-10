@@ -11,6 +11,8 @@ module Shader.Expr.Traversal
   , Traversal
   , fromGeneric
   , fromGenericA
+  , foldExpr
+  , foldVars
   ) where
 
 
@@ -267,3 +269,97 @@ overCallA t (FnDotV3 e1 e2)         = FnDotV3      <$> t.onVec3 e1    <*> t.onVe
 overCallA t (FnDotC e1 e2)          = FnDotC       <$> t.onComplex e1 <*> t.onComplex e2
 overCallA t (FnReflectV2 e1 e2)     = FnReflectV2  <$> t.onVec2 e1    <*> t.onVec2 e2
 overCallA t (FnReflectV3 e1 e2)     = FnReflectV3  <$> t.onVec3 e1    <*> t.onVec3 e2
+
+
+foldVars :: forall a b. Monoid b => (String -> b) -> Expr a -> b
+foldVars f (EVar n) = f n
+foldVars f e        = foldExpr (foldVars f) e
+
+foldExpr :: forall a b. Monoid b => (forall t. Expr t -> b) -> Expr a -> b
+foldExpr f (EVar n)           = mempty
+foldExpr f (EBool b)          = mempty
+foldExpr f (ENum n)           = mempty
+foldExpr f (EVec2 x y)        = f x <> f y
+foldExpr f (EVec3 x y z)      = f x <> f y <> f z
+foldExpr f (EComplex r i)     = f r <> f i
+foldExpr f (EColor r g b)     = f r <> f g <> f b
+foldExpr f (EUnary e)         = foldExprUnary f e
+foldExpr f (EBinary e)        = foldExprBinary f e
+foldExpr f (ECall e)          = foldExprCall f e
+foldExpr f (EUnit)            = mempty
+foldExpr f (ETuple a b)       = f a <> f b
+foldExpr f (EFst tup)         = f tup
+foldExpr f (ESnd tup)         = f tup
+foldExpr f (EIf i thn els)    = f i <> f thn <> f els
+foldExpr f (EInl val)         = f val
+foldExpr f (EInr val)         = f val
+foldExpr f (EMatch e lname l rname r)      = f e <> f l <> f r
+foldExpr f (EBind name ty e1 e2)           = f e1 <> f e2
+foldExpr f (EBindRec n name ty e1 loop e2) = f e1 <> f loop <> f e2
+
+foldExprUnary :: forall a b. Monoid b => (forall t. Expr t -> b) -> UnaryExpr a -> b
+foldExprUnary f (UnNegate e)        = f e
+foldExprUnary f (UnNot e)           = f e
+foldExprUnary f (UnProjV2X e)       = f e
+foldExprUnary f (UnProjV2Y e)       = f e
+foldExprUnary f (UnProjV3X e)       = f e
+foldExprUnary f (UnProjV3Y e)       = f e
+foldExprUnary f (UnProjV3Z e)       = f e
+foldExprUnary f (UnProjReal e)      = f e
+foldExprUnary f (UnProjImaginary e) = f e
+foldExprUnary f (UnProjR e)         = f e
+foldExprUnary f (UnProjG e)         = f e
+foldExprUnary f (UnProjB e)         = f e
+
+foldExprBinary :: forall a b. Monoid b => (forall t. Expr t -> b) -> BinaryExpr a -> b
+foldExprBinary f (BinEq e1 e2)       = f e1 <> f e2
+foldExprBinary f (BinNeq e1 e2)      = f e1 <> f e2
+foldExprBinary f (BinLt e1 e2)       = f e1 <> f e2
+foldExprBinary f (BinLte e1 e2)      = f e1 <> f e2
+foldExprBinary f (BinGt e1 e2)       = f e1 <> f e2
+foldExprBinary f (BinGte e1 e2)      = f e1 <> f e2
+foldExprBinary f (BinAnd e1 e2)      = f e1 <> f e2
+foldExprBinary f (BinOr e1 e2)       = f e1 <> f e2
+foldExprBinary f (BinPlus e1 e2)     = f e1 <> f e2
+foldExprBinary f (BinMinus e1 e2)    = f e1 <> f e2
+foldExprBinary f (BinTimes e1 e2)    = f e1 <> f e2
+foldExprBinary f (BinDiv e1 e2)      = f e1 <> f e2
+foldExprBinary f (BinPlusV2 e1 e2)   = f e1 <> f e2
+foldExprBinary f (BinMinusV2 e1 e2)  = f e1 <> f e2
+foldExprBinary f (BinScaleV2 e1 e2)  = f e1 <> f e2
+foldExprBinary f (BinPlusV3 e1 e2)   = f e1 <> f e2
+foldExprBinary f (BinMinusV3 e1 e2)  = f e1 <> f e2
+foldExprBinary f (BinScaleV3 e1 e2)  = f e1 <> f e2
+foldExprBinary f (BinPlusC e1 e2)    = f e1 <> f e2
+foldExprBinary f (BinMinusC e1 e2)   = f e1 <> f e2
+foldExprBinary f (BinTimesC e1 e2)   = f e1 <> f e2
+foldExprBinary f (BinDivC e1 e2)     = f e1 <> f e2
+foldExprBinary f (BinScaleC e1 e2)   = f e1 <> f e2
+foldExprBinary f (BinPlusCol e1 e2)  = f e1 <> f e2
+foldExprBinary f (BinMinusCol e1 e2) = f e1 <> f e2
+foldExprBinary f (BinTimesCol e1 e2) = f e1 <> f e2
+foldExprBinary f (BinScaleCol e1 e2) = f e1 <> f e2
+
+foldExprCall :: forall a b. Monoid b => (forall t. Expr t -> b) -> CallExpr a -> b
+foldExprCall f (FnAbs e)               = f e
+foldExprCall f (FnCos e)               = f e
+foldExprCall f (FnFloor e)             = f e
+foldExprCall f (FnFract e)             = f e
+foldExprCall f (FnLog e)               = f e
+foldExprCall f (FnLog2 e)              = f e
+foldExprCall f (FnSaturate e)          = f e
+foldExprCall f (FnSin e)               = f e
+foldExprCall f (FnSqrt e)              = f e
+foldExprCall f (FnAtan e1 e2)          = f e1 <> f e2
+foldExprCall f (FnMax e1 e2)           = f e1 <> f e2
+foldExprCall f (FnMin e1 e2)           = f e1 <> f e2
+foldExprCall f (FnMod e1 e2)           = f e1 <> f e2
+foldExprCall f (FnPow e1 e2)           = f e1 <> f e2
+foldExprCall f (FnSmoothstep e1 e2 e3) = f e1 <> f e2 <> f e3
+foldExprCall f (FnLengthV2 e)          = f e
+foldExprCall f (FnLengthV3 e)          = f e
+foldExprCall f (FnDotV2 e1 e2)         = f e1 <> f e2
+foldExprCall f (FnDotV3 e1 e2)         = f e1 <> f e2
+foldExprCall f (FnDotC e1 e2)          = f e1 <> f e2
+foldExprCall f (FnReflectV2 e1 e2)     = f e1 <> f e2
+foldExprCall f (FnReflectV3 e1 e2)     = f e1 <> f e2
