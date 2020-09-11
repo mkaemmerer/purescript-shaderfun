@@ -5,15 +5,13 @@ import Prelude
 import Control.Monad.Cont (Cont, cont, runCont)
 import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafePartial)
-import Shader.Expr (BinaryExpr(..), CallExpr, Expr(..), Type(..), UnaryExpr, complex, fst, projImaginary, projReal, snd, tuple)
-import Shader.Expr.Traversal (fromGenericA, on, overBinaryA, overCallA, overUnaryA)
+import Shader.Expr (BinaryExpr(..), Expr(..), Type(..), complex, fst, projImaginary, projReal, snd, tuple)
+import Shader.Expr.Traversal (on, onA)
 import Unsafe.Coerce (unsafeCoerce)
 
 
 normalize :: forall a. Expr a -> Expr a
-normalize e = unsafePartial $ e' # elaborate >>> simplify
-  where
-    e' = liftDecls e
+normalize = unsafePartial $ liftDecls >>> elaborate >>> simplify
 
 subst :: forall a b. String -> Expr a -> Expr b -> Expr b
 subst v e1 (EVar n)
@@ -87,26 +85,6 @@ liftDecls :: forall a. Expr a -> Expr a
 liftDecls e = runCont (liftDecl e) identity
 
 liftDecl :: forall a b. Expr a -> Cont (Expr b) (Expr a)
-liftDecl (EVar name)    = pure (EVar name)
-liftDecl (EBool b)      = pure (EBool b)
-liftDecl (ENum n)       = pure (ENum n)
-liftDecl (EVec2 x y)    = EVec2    <$> liftDecl x <*> liftDecl y
-liftDecl (EVec3 x y z)  = EVec3    <$> liftDecl x <*> liftDecl y <*> liftDecl z
-liftDecl (EComplex r i) = EComplex <$> liftDecl r <*> liftDecl i
-liftDecl (EColor r g b) = EColor   <$> liftDecl r <*> liftDecl g <*> liftDecl b
-liftDecl (EUnary e)     = EUnary   <$> liftDeclUnary e
-liftDecl (EBinary e)    = EBinary  <$> liftDeclBinary e
-liftDecl (ECall e)      = ECall    <$> liftDeclCall e
-liftDecl (EIf i t e)    = EIf      <$> liftDecl i <*> liftDecl t <*> liftDecl e
-liftDecl (EUnit)        = pure EUnit
-liftDecl (EFst e)       = EFst <$> liftDecl e
-liftDecl (ESnd e)       = ESnd <$> liftDecl e
-liftDecl (ETuple e1 e2) = (unsafeCoerce ETuple) <$> liftDecl e1 <*> liftDecl e2
-liftDecl (EInl e)       = EInl <$> liftDecl e
-liftDecl (EInr e)       = EInr <$> liftDecl e
-liftDecl (EMatch e lname l rname r) = mkMatch <$> liftDecl e <*> liftDecl l <*> liftDecl r
-  where
-    mkMatch e' l' r' = unsafeCoerce (EMatch e' lname l' rname r')
 liftDecl (EBind name ty e1 e2) = do
   let mkBind e1' e2' = EBind name ty (eraseType e1') e2'
   e1' <- liftDecl e1
@@ -116,12 +94,4 @@ liftDecl (EBindRec n name ty e1 loop e2) = do
   e1' <- liftDecl e1
   let loop' = liftDecls $ eraseType loop
   cont \f -> mkRec e1' loop' (runCont (liftDecl e2) f)
-
-liftDeclUnary :: forall a b. UnaryExpr a -> Cont (Expr b) (UnaryExpr a)
-liftDeclUnary e = overUnaryA (fromGenericA liftDecl) e
-
-liftDeclBinary :: forall a b. BinaryExpr a -> Cont (Expr b) (BinaryExpr a)
-liftDeclBinary e = overBinaryA (fromGenericA liftDecl) e
-
-liftDeclCall :: forall a b. CallExpr a -> Cont (Expr b) (CallExpr a)
-liftDeclCall e = overCallA (fromGenericA liftDecl) e
+liftDecl e = onA liftDecl e

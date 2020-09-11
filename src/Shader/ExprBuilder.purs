@@ -52,11 +52,17 @@ decl e = do
   _ <- modify $ _ { cont = build >>> (eraseType cont) }
   pure $ EVar name
 
+-- | `match` pattern matches on an expression of type `Either a b`
+-- | and chooses the left or right branch accordingly
 match :: forall a b c. Expr (Either a b) -> (Expr a -> Expr c) -> (Expr b -> Expr c) -> ExprBuilder c
 match e l r = do
   name <- newVar
   pure $ matchE e name l r
 
+-- | `rec` performs bounded recursion up to a given depth.
+-- | Recursive function should yield an expression with type `Either t t`
+-- | where right values denotes a final result, and left values denote in progress computation.
+-- | Use `done` and `loop` to tag expressions.
 rec :: forall t. (TypedExpr t) => Int -> (Expr t -> ExprBuilder (Either t t)) -> Expr t -> ExprBuilder t
 rec n f seed = do
   name <- newVar

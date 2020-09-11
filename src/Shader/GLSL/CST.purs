@@ -18,14 +18,15 @@ import Shader.Expr.Normalization (normalize)
 import Shader.Expr.Traversal (foldVars)
 import Unsafe.Coerce (unsafeCoerce)
 
+type Var      = String
 type UnaryOp  = String
 type BinaryOp = String
 type GLSLFn   = String
 type GLSLType = String
 
 data CStmt
-  = CSDecl GLSLType String CExpr
-  | CSAssign String CExpr
+  = CSDecl GLSLType Var CExpr
+  | CSAssign Var CExpr
   | CSReturn CExpr
   | CSIf CExpr CBlock (Maybe CBlock)
   | CSLoop Int CBlock
@@ -34,7 +35,7 @@ data CStmt
 type CBlock = Array CStmt
 
 data CExpr
-  = CEVar String
+  = CEVar Var
   | CEBool Boolean
   | CEFloat Number
   | CEVec2 CExpr CExpr
