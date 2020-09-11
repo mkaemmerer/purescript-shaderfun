@@ -2,10 +2,6 @@ module Shader.Expr.Traversal
   ( on
   , onA
   , over
-  , overTyped
-  , overUnary
-  , overBinary
-  , overCall
   , Traversal
   , fromGeneric
   , foldExpr
@@ -19,14 +15,14 @@ import Data.Color (Color)
 import Data.Complex (Complex)
 import Data.Vec2 (Vec2)
 import Data.Vec3 (Vec3)
-import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..))
+import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..))
 import Shader.Expr.Cast (asBoolean, asColor, asComplex, asNumber, asVec2, asVec3)
 import Unsafe.Coerce (unsafeCoerce)
 
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
 
-
+-- | Lift a function over one level of an expression tree
 on :: forall a. (forall b. Expr b -> Expr b) -> Expr a -> Expr a
 on f (EVar n)           = EVar n
 on f (EBool b)          = EBool b
@@ -50,15 +46,73 @@ on f (EBind name ty e1 e2)           = EBind name ty (f e1) (f e2)
 on f (EBindRec n name ty e1 loop e2) = EBindRec n name ty (f e1) (f loop) (f e2)
 
 onUnary :: forall a. (forall b. Expr b -> Expr b) -> UnaryExpr a -> UnaryExpr a
-onUnary f = overUnary (fromGeneric f)
+onUnary f (UnNegate e)        = UnNegate        (f e)
+onUnary f (UnNot e)           = UnNot           (f e)
+onUnary f (UnProjV2X e)       = UnProjV2X       (f e)
+onUnary f (UnProjV2Y e)       = UnProjV2Y       (f e)
+onUnary f (UnProjV3X e)       = UnProjV3X       (f e)
+onUnary f (UnProjV3Y e)       = UnProjV3Y       (f e)
+onUnary f (UnProjV3Z e)       = UnProjV3Z       (f e)
+onUnary f (UnProjReal e)      = UnProjReal      (f e)
+onUnary f (UnProjImaginary e) = UnProjImaginary (f e)
+onUnary f (UnProjR e)         = UnProjR         (f e)
+onUnary f (UnProjG e)         = UnProjG         (f e)
+onUnary f (UnProjB e)         = UnProjB         (f e)
 
 onBinary :: forall a. (forall b. Expr b -> Expr b) -> BinaryExpr a -> BinaryExpr a
-onBinary f = overBinary (fromGeneric f)
+onBinary f (BinEq e1 e2)       = BinEq       (f e1) (f e2)
+onBinary f (BinNeq e1 e2)      = BinNeq      (f e1) (f e2)
+onBinary f (BinLt e1 e2)       = BinLt       (f e1) (f e2)
+onBinary f (BinLte e1 e2)      = BinLte      (f e1) (f e2)
+onBinary f (BinGt e1 e2)       = BinGt       (f e1) (f e2)
+onBinary f (BinGte e1 e2)      = BinGte      (f e1) (f e2)
+onBinary f (BinAnd e1 e2)      = BinAnd      (f e1) (f e2)
+onBinary f (BinOr e1 e2)       = BinOr       (f e1) (f e2)
+onBinary f (BinPlus e1 e2)     = BinPlus     (f e1) (f e2)
+onBinary f (BinMinus e1 e2)    = BinMinus    (f e1) (f e2)
+onBinary f (BinTimes e1 e2)    = BinTimes    (f e1) (f e2)
+onBinary f (BinDiv e1 e2)      = BinDiv      (f e1) (f e2)
+onBinary f (BinPlusV2 e1 e2)   = BinPlusV2   (f e1) (f e2)
+onBinary f (BinMinusV2 e1 e2)  = BinMinusV2  (f e1) (f e2)
+onBinary f (BinScaleV2 e1 e2)  = BinScaleV2  (f e1) (f e2)
+onBinary f (BinPlusV3 e1 e2)   = BinPlusV3   (f e1) (f e2)
+onBinary f (BinMinusV3 e1 e2)  = BinMinusV3  (f e1) (f e2)
+onBinary f (BinScaleV3 e1 e2)  = BinScaleV3  (f e1) (f e2)
+onBinary f (BinPlusC e1 e2)    = BinPlusC    (f e1) (f e2)
+onBinary f (BinMinusC e1 e2)   = BinMinusC   (f e1) (f e2)
+onBinary f (BinTimesC e1 e2)   = BinTimesC   (f e1) (f e2)
+onBinary f (BinDivC e1 e2)     = BinDivC     (f e1) (f e2)
+onBinary f (BinScaleC e1 e2)   = BinScaleC   (f e1) (f e2)
+onBinary f (BinPlusCol e1 e2)  = BinPlusCol  (f e1) (f e2)
+onBinary f (BinMinusCol e1 e2) = BinMinusCol (f e1) (f e2)
+onBinary f (BinTimesCol e1 e2) = BinTimesCol (f e1) (f e2)
+onBinary f (BinScaleCol e1 e2) = BinScaleCol (f e1) (f e2)
 
 onCall :: forall a. (forall b. Expr b -> Expr b) -> CallExpr a -> CallExpr a
-onCall f = overCall (fromGeneric f)
+onCall f (FnAbs e)               = FnAbs        (f e)
+onCall f (FnCos e)               = FnCos        (f e)
+onCall f (FnFloor e)             = FnFloor      (f e)
+onCall f (FnFract e)             = FnFract      (f e)
+onCall f (FnLog e)               = FnLog        (f e)
+onCall f (FnLog2 e)              = FnLog2       (f e)
+onCall f (FnSaturate e)          = FnSaturate   (f e)
+onCall f (FnSin e)               = FnSin        (f e)
+onCall f (FnSqrt e)              = FnSqrt       (f e)
+onCall f (FnAtan e1 e2)          = FnAtan       (f e1) (f e2)
+onCall f (FnMax e1 e2)           = FnMax        (f e1) (f e2)
+onCall f (FnMin e1 e2)           = FnMin        (f e1) (f e2)
+onCall f (FnMod e1 e2)           = FnMod        (f e1) (f e2)
+onCall f (FnPow e1 e2)           = FnPow        (f e1) (f e2)
+onCall f (FnSmoothstep e1 e2 e3) = FnSmoothstep (f e1) (f e2) (f e3)
+onCall f (FnLengthV2 e)          = FnLengthV2   (f e)
+onCall f (FnLengthV3 e)          = FnLengthV3   (f e)
+onCall f (FnDotV2 e1 e2)         = FnDotV2      (f e1) (f e2)
+onCall f (FnDotV3 e1 e2)         = FnDotV3      (f e1) (f e2)
+onCall f (FnDotC e1 e2)          = FnDotC       (f e1) (f e2)
+onCall f (FnReflectV2 e1 e2)     = FnReflectV2  (f e1) (f e2)
+onCall f (FnReflectV3 e1 e2)     = FnReflectV3  (f e1) (f e2)
 
-
+-- | Lift an applicative function over one level of an expression tree
 onA :: forall a f. Applicative f => (forall b. Expr b -> f (Expr b)) -> Expr a -> f (Expr a)
 onA f (EVar n)           = pure $ EVar n
 onA f (EBool b)          = pure $ EBool b
@@ -168,114 +222,103 @@ fromGeneric f = {
   onColor:   f
 }
 
+-- | Apply a traversal to the largest subexpression with a compatible, inferrable type
 over :: forall a. Traversal -> Expr a -> Expr a
 over t (EVar n)           = EVar n
-over t (EBool b)          = EBool b
-over t (ENum n)           = ENum n
-over t (EVec2 x y)        = EVec2 (over t x) (over t y)
-over t (EVec3 x y z)      = EVec3 (over t x) (over t y) (over t z)
-over t (EComplex r i)     = EComplex (over t r) (over t i)
-over t (EColor r g b)     = EColor (over t r) (over t g) (over t b)
-over t (EUnary e)         = EUnary $ overUnary t e
-over t (EBinary e)        = EBinary $ overBinary t e
-over t (ECall e)          = ECall $ overCall t e
+over t e@(EBool b)        = eraseType $ t.onBool $ asBoolean e
+over t e@(ENum n)         = eraseType $ t.onNum $ asNumber e
+over t e@(EVec2 x y)      = eraseType $ t.onVec2 $ asVec2 e
+over t e@(EVec3 x y z)    = eraseType $ t.onVec3 $ asVec3 e
+over t e@(EComplex r i)   = eraseType $ t.onComplex $ asComplex e
+over t e@(EColor r g b)   = eraseType $ t.onColor $ asColor e
+over t (EUnary e)         = dispatchUnary t e
+over t (EBinary e)        = dispatchBinary t e
+over t (ECall e)          = dispatchCall t e
 over t (EUnit)            = EUnit
 over t (ETuple a b)       = ETuple (over t a) (over t b)
 over t (EFst tup)         = EFst (over t tup)
 over t (ESnd tup)         = ESnd (over t tup)
-over t (EIf i thn els)    = EIf (over t i) (over t thn) (over t els)
+over t (EIf i thn els)    = EIf (t.onBool i) (over t thn) (over t els)
 over t (EInl val)         = EInl (over t val)
 over t (EInr val)         = EInr (over t val)
 over t (EMatch e lname l rname r)      = EMatch (over t e) lname (over t l) rname (over t r)
 over t (EBind name ty e1 e2)           = EBind name ty (over t e1) (over t e2)
 over t (EBindRec n name ty e1 loop e2) = EBindRec n name ty (over t e1) (over t loop) (over t e2)
 
-overTyped :: forall a. Traversal -> Type -> Expr a -> Expr a
-overTyped t TBoolean      e = eraseType $ t.onBool    $ asBoolean e
-overTyped t TScalar       e = eraseType $ t.onNum     $ asNumber e
-overTyped t TVec2         e = eraseType $ t.onVec2    $ asVec2 e
-overTyped t TVec3         e = eraseType $ t.onVec3    $ asVec3 e
-overTyped t TComplex      e = eraseType $ t.onComplex $ asComplex e
-overTyped t TColor        e = eraseType $ t.onColor   $ asColor e
-overTyped t TUnit         e = over t e
-overTyped t (TTuple a b)  e = over t e
-overTyped t (TEither a b) e = over t e
+dispatchUnary :: forall a. Traversal -> UnaryExpr a -> Expr a
+dispatchUnary t e@(UnNegate _)        = eraseType $ t.onNum      $ asNumber  (EUnary e)
+dispatchUnary t e@(UnNot _)           = eraseType $ t.onBool     $ asBoolean (EUnary e)
+dispatchUnary t e@(UnProjV2X _)       = eraseType $ t.onVec2     $ asVec2    (EUnary e)
+dispatchUnary t e@(UnProjV2Y _)       = eraseType $ t.onVec2     $ asVec2    (EUnary e)
+dispatchUnary t e@(UnProjV3X _)       = eraseType $ t.onVec3     $ asVec3    (EUnary e)
+dispatchUnary t e@(UnProjV3Y _)       = eraseType $ t.onVec3     $ asVec3    (EUnary e)
+dispatchUnary t e@(UnProjV3Z _)       = eraseType $ t.onVec3     $ asVec3    (EUnary e)
+dispatchUnary t e@(UnProjReal _)      = eraseType $ t.onComplex  $ asComplex (EUnary e)
+dispatchUnary t e@(UnProjImaginary _) = eraseType $ t.onComplex  $ asComplex (EUnary e)
+dispatchUnary t e@(UnProjR _)         = eraseType $ t.onColor    $ asColor   (EUnary e)
+dispatchUnary t e@(UnProjG _)         = eraseType $ t.onColor    $ asColor   (EUnary e)
+dispatchUnary t e@(UnProjB _)         = eraseType $ t.onColor    $ asColor   (EUnary e)
 
-overUnary :: forall a.
-  Traversal ->
-  UnaryExpr a ->
-  UnaryExpr a
-overUnary t (UnNegate e)        = UnNegate        (t.onNum e)
-overUnary t (UnNot e)           = UnNot           (t.onBool e)
-overUnary t (UnProjV2X e)       = UnProjV2X       (t.onVec2 e)
-overUnary t (UnProjV2Y e)       = UnProjV2Y       (t.onVec2 e)
-overUnary t (UnProjV3X e)       = UnProjV3X       (t.onVec3 e)
-overUnary t (UnProjV3Y e)       = UnProjV3Y       (t.onVec3 e)
-overUnary t (UnProjV3Z e)       = UnProjV3Z       (t.onVec3 e)
-overUnary t (UnProjReal e)      = UnProjReal      (t.onComplex e)
-overUnary t (UnProjImaginary e) = UnProjImaginary (t.onComplex e)
-overUnary t (UnProjR e)         = UnProjR         (t.onColor e)
-overUnary t (UnProjG e)         = UnProjG         (t.onColor e)
-overUnary t (UnProjB e)         = UnProjB         (t.onColor e)
+dispatchBinary :: forall a. Traversal -> BinaryExpr a -> Expr a
+dispatchBinary t e@(BinEq _ _)       = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinNeq _ _)      = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinLt _ _)       = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinLte _ _)      = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinGt _ _)       = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinGte _ _)      = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinAnd _ _)      = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinOr _ _)       = eraseType $ t.onBool     $ asBoolean  (EBinary e)
+dispatchBinary t e@(BinPlus _ _)     = eraseType $ t.onNum      $ asNumber   (EBinary e)
+dispatchBinary t e@(BinMinus _ _)    = eraseType $ t.onNum      $ asNumber   (EBinary e)
+dispatchBinary t e@(BinTimes _ _)    = eraseType $ t.onNum      $ asNumber   (EBinary e)
+dispatchBinary t e@(BinDiv _ _)      = eraseType $ t.onNum      $ asNumber   (EBinary e)
+dispatchBinary t e@(BinPlusV2 _ _)   = eraseType $ t.onVec2     $ asVec2     (EBinary e)
+dispatchBinary t e@(BinMinusV2 _ _)  = eraseType $ t.onVec2     $ asVec2     (EBinary e)
+dispatchBinary t e@(BinScaleV2 _ _)  = eraseType $ t.onVec2     $ asVec2     (EBinary e)
+dispatchBinary t e@(BinPlusV3 _ _)   = eraseType $ t.onVec3     $ asVec3     (EBinary e)
+dispatchBinary t e@(BinMinusV3 _ _)  = eraseType $ t.onVec3     $ asVec3     (EBinary e)
+dispatchBinary t e@(BinScaleV3 _ _)  = eraseType $ t.onVec3     $ asVec3     (EBinary e)
+dispatchBinary t e@(BinPlusC _ _)    = eraseType $ t.onComplex  $ asComplex  (EBinary e)
+dispatchBinary t e@(BinMinusC _ _)   = eraseType $ t.onComplex  $ asComplex  (EBinary e)
+dispatchBinary t e@(BinTimesC _ _)   = eraseType $ t.onComplex  $ asComplex  (EBinary e)
+dispatchBinary t e@(BinDivC _ _)     = eraseType $ t.onComplex  $ asComplex  (EBinary e)
+dispatchBinary t e@(BinScaleC _ _)   = eraseType $ t.onComplex  $ asComplex  (EBinary e)
+dispatchBinary t e@(BinPlusCol _ _)  = eraseType $ t.onColor    $ asColor    (EBinary e)
+dispatchBinary t e@(BinMinusCol _ _) = eraseType $ t.onColor    $ asColor    (EBinary e)
+dispatchBinary t e@(BinTimesCol _ _) = eraseType $ t.onColor    $ asColor    (EBinary e)
+dispatchBinary t e@(BinScaleCol _ _) = eraseType $ t.onColor    $ asColor    (EBinary e)
 
-overBinary :: forall a. Traversal -> BinaryExpr a -> BinaryExpr a
-overBinary t (BinEq e1 e2)       = BinEq       (t.onNum e1)     (t.onNum e2)
-overBinary t (BinNeq e1 e2)      = BinNeq      (t.onNum e1)     (t.onNum e2)
-overBinary t (BinLt e1 e2)       = BinLt       (t.onNum e1)     (t.onNum e2)
-overBinary t (BinLte e1 e2)      = BinLte      (t.onNum e1)     (t.onNum e2)
-overBinary t (BinGt e1 e2)       = BinGt       (t.onNum e1)     (t.onNum e2)
-overBinary t (BinGte e1 e2)      = BinGte      (t.onNum e1)     (t.onNum e2)
-overBinary t (BinAnd e1 e2)      = BinAnd      (t.onBool e1)    (t.onBool e2)
-overBinary t (BinOr e1 e2)       = BinOr       (t.onBool e1)    (t.onBool e2)
-overBinary t (BinPlus e1 e2)     = BinPlus     (t.onNum e1)     (t.onNum e2)
-overBinary t (BinMinus e1 e2)    = BinMinus    (t.onNum e1)     (t.onNum e2)
-overBinary t (BinTimes e1 e2)    = BinTimes    (t.onNum e1)     (t.onNum e2)
-overBinary t (BinDiv e1 e2)      = BinDiv      (t.onNum e1)     (t.onNum e2)
-overBinary t (BinPlusV2 e1 e2)   = BinPlusV2   (t.onVec2 e1)    (t.onVec2 e2)
-overBinary t (BinMinusV2 e1 e2)  = BinMinusV2  (t.onVec2 e1)    (t.onVec2 e2)
-overBinary t (BinScaleV2 e1 e2)  = BinScaleV2  (t.onNum e1)     (t.onVec2 e2)
-overBinary t (BinPlusV3 e1 e2)   = BinPlusV3   (t.onVec3 e1)    (t.onVec3 e2)
-overBinary t (BinMinusV3 e1 e2)  = BinMinusV3  (t.onVec3 e1)    (t.onVec3 e2)
-overBinary t (BinScaleV3 e1 e2)  = BinScaleV3  (t.onNum e1)     (t.onVec3 e2)
-overBinary t (BinPlusC e1 e2)    = BinPlusC    (t.onComplex e1) (t.onComplex e2)
-overBinary t (BinMinusC e1 e2)   = BinMinusC   (t.onComplex e1) (t.onComplex e2)
-overBinary t (BinTimesC e1 e2)   = BinTimesC   (t.onComplex e1) (t.onComplex e2)
-overBinary t (BinDivC e1 e2)     = BinDivC     (t.onComplex e1) (t.onComplex e2)
-overBinary t (BinScaleC e1 e2)   = BinScaleC   (t.onNum e1)     (t.onComplex e2)
-overBinary t (BinPlusCol e1 e2)  = BinPlusCol  (t.onColor e1)   (t.onColor e2)
-overBinary t (BinMinusCol e1 e2) = BinMinusCol (t.onColor e1)   (t.onColor e2)
-overBinary t (BinTimesCol e1 e2) = BinTimesCol (t.onColor e1)   (t.onColor e2)
-overBinary t (BinScaleCol e1 e2) = BinScaleCol (t.onNum e1)     (t.onColor e2)
-
-overCall :: forall a. Traversal -> CallExpr a -> CallExpr a
-overCall t (FnAbs e)               = FnAbs        (t.onNum e)
-overCall t (FnCos e)               = FnCos        (t.onNum e)
-overCall t (FnFloor e)             = FnFloor      (t.onNum e)
-overCall t (FnFract e)             = FnFract      (t.onNum e)
-overCall t (FnLog e)               = FnLog        (t.onNum e)
-overCall t (FnLog2 e)              = FnLog2       (t.onNum e)
-overCall t (FnSaturate e)          = FnSaturate   (t.onNum e)
-overCall t (FnSin e)               = FnSin        (t.onNum e)
-overCall t (FnSqrt e)              = FnSqrt       (t.onNum e)
-overCall t (FnAtan e1 e2)          = FnAtan       (t.onNum e1) (t.onNum e2)
-overCall t (FnMax e1 e2)           = FnMax        (t.onNum e1) (t.onNum e2)
-overCall t (FnMin e1 e2)           = FnMin        (t.onNum e1) (t.onNum e2)
-overCall t (FnMod e1 e2)           = FnMod        (t.onNum e1) (t.onNum e2)
-overCall t (FnPow e1 e2)           = FnPow        (t.onNum e1) (t.onNum e2)
-overCall t (FnSmoothstep e1 e2 e3) = FnSmoothstep (t.onNum e1) (t.onNum e2) (t.onNum e3)
-overCall t (FnLengthV2 e)          = FnLengthV2   (t.onVec2 e)
-overCall t (FnLengthV3 e)          = FnLengthV3   (t.onVec3 e)
-overCall t (FnDotV2 e1 e2)         = FnDotV2      (t.onVec2 e1)    (t.onVec2 e2)
-overCall t (FnDotV3 e1 e2)         = FnDotV3      (t.onVec3 e1)    (t.onVec3 e2)
-overCall t (FnDotC e1 e2)          = FnDotC       (t.onComplex e1) (t.onComplex e2)
-overCall t (FnReflectV2 e1 e2)     = FnReflectV2  (t.onVec2 e1)    (t.onVec2 e2)
-overCall t (FnReflectV3 e1 e2)     = FnReflectV3  (t.onVec3 e1)    (t.onVec3 e2)
+dispatchCall :: forall a. Traversal -> CallExpr a -> Expr a
+dispatchCall t e@(FnAbs _)            = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnCos _)            = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnFloor _)          = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnFract _)          = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnLog _)            = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnLog2 _)           = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnSaturate _)       = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnSin _)            = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnSqrt _)           = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnAtan _ _)         = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnMax _ _)          = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnMin _ _)          = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnMod _ _)          = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnPow _ _)          = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnSmoothstep _ _ _) = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnLengthV2 _)       = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnLengthV3 _)       = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnDotV2 _ _)        = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnDotV3 _ _)        = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnDotC _ _)         = eraseType $ t.onNum  $ asNumber (ECall e)
+dispatchCall t e@(FnReflectV2 _ _)    = eraseType $ t.onVec2 $ asVec2 (ECall e)
+dispatchCall t e@(FnReflectV3 _ _)    = eraseType $ t.onVec3 $ asVec3 (ECall e)
 
 
+-- | Apply a function to all vars in an expression tree and accumulate the result as a monoid
 foldVars :: forall a b. Monoid b => (String -> b) -> Expr a -> b
 foldVars f (EVar n) = f n
 foldVars f e        = foldExpr (foldVars f) e
 
+-- | Lift a function over one level of an expression tree, and accumulate the result as a monoid
 foldExpr :: forall a b. Monoid b => (forall t. Expr t -> b) -> Expr a -> b
 foldExpr f (EVar n)           = mempty
 foldExpr f (EBool b)          = mempty

@@ -5,8 +5,9 @@ import Prelude
 import Data.Foldable (intercalate)
 import Effect (Effect)
 import Effect.Class.Console (log)
-import Shader.Expr (BinaryExpr(..), Expr(..), bindE, inl, matchE, num)
+import Shader.Expr (BinaryExpr(..), Expr(..), bindE, num)
 import Shader.Expr.Normalization (normalize)
+import Shader.Expr.Optimization (optimize)
 
 x :: Expr Number
 x = EVar "x"
@@ -14,20 +15,14 @@ x = EVar "x"
 y :: Expr Number
 y = EVar "y"
 
-z :: Expr Number
-z = EVar "z"
-
-w :: Expr Number
-w = EVar "w"
-
 expr :: Expr Number
-expr = matchE
-  (bindE "w"
+expr = (
+  bindE "x"
     (num 0.0)
-    (bindE "x" (num 0.0) (inl w)))
-  ""
-  (const (num 0.0))
-  (const (num 1.0))
+    (bindE "y"
+      ((x + num 0.0) + (num 1.0 + num (-1.0)))
+      y)
+  )
 
 main :: Effect Unit
 main = do
@@ -35,7 +30,7 @@ main = do
   log $ showExpr $ e'
   where 
     e  = expr
-    e' = normalize expr
+    e' = optimize $ normalize expr
 
 showCtor :: String -> Array String -> String
 showCtor ctor args = "(" <> ctor <> " " <> intercalate " " args <>  ")"
