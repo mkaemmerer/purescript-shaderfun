@@ -1,4 +1,17 @@
-module Shader.Expr.Optimization (class ConstantFold, toConst, cFold, constantFold, class IdentityFold, iFoldL, iFoldR, identityFold, optimize) where
+module Shader.Expr.Optimization
+  ( class ConstantFold
+  , toConst
+  , cFold
+  , constantFold
+  , class IdentityFold
+  , iFoldL
+  , iFoldR
+  , identityFold
+  , class Annihilates
+  , annihilateL
+  , annihilateR
+  , optimize
+  ) where
 
 import Prelude
 
@@ -16,14 +29,17 @@ import Data.VectorSpace (magnitude, zeroV, (*^), (<.>), (^+^), (^-^))
 import Math (atan2, cos, log, log2e, pow, sin, sqrt)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..))
 import Shader.Expr.Cast (class Castable, cast)
+import Shader.Expr.Normalization (subst)
 import Shader.Expr.Traversal (Traversal, on, over)
 import Unsafe.Coerce (unsafeCoerce)
 
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
 
-optimize :: forall a. (ConstantFold a) => (IdentityFold a) => Expr a -> Expr a
-optimize = constantFold >>> identityFold
+-- TODO: apply these rules recursively?
+-- Annihilation could create more opportunities for constant folding
+optimize :: forall a. (ConstantFold a) => (IdentityFold a) => (Annihilates a) => Expr a -> Expr a
+optimize = constantFold >>> identityFold >>> annihilate
 
 
 -------------------------------------------------------------------------------
@@ -178,7 +194,13 @@ instance constantFoldColor :: ConstantFold Color where
   cFold e = Nothing
 
 -- TODO: is this instance even needed?
-instance constantFoldTuple :: (Castable (Tuple a b), Castable a, Castable b, ConstantFold a, ConstantFold b) => ConstantFold (Tuple a b) where
+instance constantFoldTuple :: (
+  Castable (Tuple a b),
+  Castable a,
+  Castable b,
+  ConstantFold a,
+  ConstantFold b
+) => ConstantFold (Tuple a b) where
   toConst (ETuple a b) = Tuple <$> (toConst a) <*> (toConst b)
   toConst e = cFold e >>= toConst
   cFold e = Nothing
@@ -297,3 +319,72 @@ instance identityFoldColor :: IdentityFold Color where
   iFoldR (BinMinusCol e1 e2) = if e2 == zeroV then Just e1 else Nothing
   iFoldR (BinTimesCol e1 e2) = if e2 == one then Just e1 else Nothing
   iFoldR _ = Nothing
+
+-------------------------------------------------------------------------------
+-- Annihilation
+-------------------------------------------------------------------------------
+
+annihilate :: forall a. Annihilates a => Expr a -> Expr a
+annihilate (EIf i thn els)
+  | i == tt   = annihilate thn
+  | i == ff   = annihilate els
+annihilate (EFst (ETuple e1 e2)) = annihilate e1
+annihilate (ESnd (ETuple e1 e2)) = annihilate e2
+annihilate (EMatch (EInl e) lname l rname r) = annihilate $ subst lname e l
+annihilate (EMatch (EInr e) lname l rname r) = annihilate $ subst rname e r
+annihilate e@(EBinary bin) = case (annihilateL bin <|> annihilateR bin) of
+  Just ex -> annihilate ex
+  Nothing -> on (over (annihilationTraversal unit)) e
+annihilate e = on (over (annihilationTraversal unit)) e
+
+annihilationTraversal :: Unit -> Traversal
+annihilationTraversal _ = {
+  onBool:    annihilate,
+  onNum:     annihilate,
+  onVec2:    annihilate,
+  onVec3:    annihilate,
+  onComplex: annihilate,
+  onColor:   annihilate
+}
+
+class Annihilates t where
+  annihilateL :: BinaryExpr t -> Maybe (Expr t)
+  annihilateR :: BinaryExpr t -> Maybe (Expr t)
+
+instance annihilatesBool :: Annihilates Boolean where
+  annihilateL (BinAnd e1 e2)      = if e1 == ff then Just ff else Nothing
+  annihilateL (BinOr e1 e2)       = if e1 == tt then Just tt else Nothing
+  annihilateL _ = Nothing
+  annihilateR (BinAnd e1 e2)      = if e2 == ff then Just ff else Nothing
+  annihilateR (BinOr e1 e2)       = if e2 == tt then Just tt else Nothing
+  annihilateR _ = Nothing
+
+instance annihilatesNumber :: Annihilates Number where
+  annihilateL (BinTimes e1 e2)    = if e1 == zero then Just zero else Nothing
+  annihilateL _ = Nothing
+  annihilateR (BinTimes e1 e2)    = if e2 == zero then Just zero else Nothing
+  annihilateR _ = Nothing
+
+instance annihilatesVec2 :: Annihilates Vec2 where
+  annihilateL (BinScaleV2 e1 e2)  = if e1 == zero then Just zeroV else Nothing
+  annihilateL _ = Nothing
+  annihilateR _ = Nothing
+
+instance annihilatesVec3 :: Annihilates Vec3 where
+  annihilateL (BinScaleV3 e1 e2)  = if e1 == zero then Just zeroV else Nothing
+  annihilateL _ = Nothing
+  annihilateR _ = Nothing
+
+instance annihilatesComplex :: Annihilates Complex where
+  annihilateL (BinScaleC e1 e2)  = if e1 == zero then Just zeroV else Nothing
+  annihilateL (BinTimesC e1 e2)  = if e1 == zero then Just zeroV else Nothing
+  annihilateL _ = Nothing
+  annihilateR (BinTimesC e1 e2)  = if e2 == zero then Just zeroV else Nothing
+  annihilateR _ = Nothing
+
+instance annihilatesColor :: Annihilates Color where
+  annihilateL (BinTimesCol e1 e2) = if e1 == zero then Just zeroV else Nothing
+  annihilateL (BinScaleCol e1 e2) = if e1 == zero then Just zeroV else Nothing
+  annihilateL _ = Nothing
+  annihilateR (BinTimesCol e1 e2) = if e2 == zero then Just zeroV else Nothing
+  annihilateR _ = Nothing
