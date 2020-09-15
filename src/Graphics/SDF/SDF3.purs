@@ -3,13 +3,15 @@ module Graphics.SDF3
   , sphere
   , box
   , raymarch
+  , surfaceNormal
   ) where
 
 import Prelude hiding (min,max)
 
+import Control.Apply (lift2)
 import Data.Tuple (Tuple(..))
 import Data.Vec3 (Vec3)
-import Data.VectorSpace ((^-^), (^+^), (*^))
+import Data.VectorSpace ((*^), (^+^), (^-^), (^/))
 import Graphics.SDF (circle)
 import Shader.Expr (Expr, abs, done, ifE, length, loop, lte, max, min, num, projX, projY, projZ, snd, tuple, vec3)
 import Shader.Expr.Cast (cast, from)
@@ -54,3 +56,20 @@ raymarch sdf ray = snd <$> rec 256 march (tuple p0 zero)
     pure $ ifE cond
       (done (tuple p' t))
       (loop (tuple p' (t + dist)))
+
+
+normalized :: Expr Vec3 -> Expr Vec3
+normalized v = v ^/ length v
+
+-- Numeric surface normals via central differences
+surfaceNormal :: SDF3 -> Vec3 |> Vec3
+surfaceNormal sdf v = do
+  let i = vec3 one zero zero
+  let j = vec3 zero one zero
+  let k = vec3 zero zero one
+  dx  <- sdf (v ^+^ eps *^ i)  `lift2 (-)`  sdf (v ^-^ eps *^ i)
+  dy  <- sdf (v ^+^ eps *^ j)  `lift2 (-)`  sdf (v ^-^ eps *^ j)
+  dz  <- sdf (v ^+^ eps *^ k)  `lift2 (-)`  sdf (v ^-^ eps *^ k)
+  n  <- decl $ vec3 dx dy dz
+  n' <- decl $ normalized n
+  pure n'

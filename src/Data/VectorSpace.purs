@@ -16,6 +16,7 @@ module Data.VectorSpace
   , averageV
   , magnitudeSquared
   , magnitude
+  , normalized
   , (^+^)
   , (^-^)
   , (<.>)
@@ -83,6 +84,8 @@ lerp a b t = a ^+^ t *^ (b ^-^ a)
 sumV :: forall v s f. Foldable f => VectorSpace s v => f v -> v
 sumV = foldl addV zeroV
 
+-- TODO: does this really make sense?
+-- I'm assuming something specific about the division ring structure and "count".
 averageV ::
   forall v s f.
   Functor f =>
@@ -103,6 +106,9 @@ magnitudeSquared v = v <.> v
 
 magnitude :: forall v. InnerSpace Number v => v -> Number
 magnitude = magnitudeSquared >>> sqrt 
+
+normalized :: forall v. InnerSpace Number v => v -> v
+normalized v = v ^/ magnitude v
 
 -- Number instance
 instance additiveGroupNumber :: AdditiveGroup Number where
