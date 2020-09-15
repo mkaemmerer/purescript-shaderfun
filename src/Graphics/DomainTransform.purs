@@ -32,7 +32,7 @@ import Shader.ExprBuilder (type (|>), decl)
 liftF :: forall f a b. Applicative f => (a -> b) -> a -> f b
 liftF f a = pure $ f a
 
-overDomain :: forall dom rng. (dom |> dom) -> (dom |> rng) -> (dom |> rng)
+overDomain :: forall dom1 dom2 rng. (dom2 |> dom1) -> (dom1 |> rng) -> (dom2 |> rng)
 overDomain = composeKleisli
 
 

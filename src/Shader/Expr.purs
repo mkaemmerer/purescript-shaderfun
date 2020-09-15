@@ -50,6 +50,7 @@ module Shader.Expr
   , min
   , mod
   , neq
+  , normalized
   , num
   , p
   , pow
@@ -80,7 +81,7 @@ import Data.HeytingAlgebra (ff, implies, tt)
 import Data.Tuple (Tuple)
 import Data.Vec2 (Vec2(..))
 import Data.Vec3 (Vec3(..))
-import Data.VectorSpace (class AdditiveGroup, class InnerSpace, class VectorSpace, negateV, zeroV, (*^), (^+^), (^-^), (<.>))
+import Data.VectorSpace (class AdditiveGroup, class InnerSpace, class VectorSpace, negateV, zeroV, (*^), (<.>), (^+^), (^-^))
 import Unsafe.Coerce (unsafeCoerce)
 
 data Type
@@ -155,6 +156,8 @@ data CallExpr t
   | FnSmoothstep (Expr Number) (Expr Number) (Expr Number)
   | FnLengthV2 (Expr Vec2)
   | FnLengthV3 (Expr Vec3)
+  | FnNormalizeV2 (Expr Vec2)
+  | FnNormalizeV3 (Expr Vec3)
   | FnDotV2 (Expr Vec2) (Expr Vec2)
   | FnDotV3 (Expr Vec3) (Expr Vec3)
   | FnDotC (Expr Complex) (Expr Complex)
@@ -354,6 +357,7 @@ class
   , InnerSpace (Expr Number) (Expr v)
   ) <= VecExpr v where
   length :: Expr v -> Expr Number
+  normalized :: Expr v -> Expr v
   reflect :: Expr v -> Expr v -> Expr v
 
 class (VecExpr t) <= HasX t where
@@ -368,10 +372,12 @@ class (VecExpr t) <= HasZ t where
 instance vecExprVec2 :: VecExpr Vec2 where
   length = lengthV2
   reflect = reflectV2
+  normalized = normalizeV2
 
 instance vecExprVec3 :: VecExpr Vec3 where
   length = lengthV3
   reflect = reflectV3
+  normalized = normalizeV3
 
 instance hasXVec2 :: HasX Vec2 where
   projX = unary UnProjV2X
@@ -484,6 +490,12 @@ reflectV2 = call2 FnReflectV2
 reflectV3 :: Expr Vec3 -> Expr Vec3 -> Expr Vec3
 reflectV3 = call2 FnReflectV3
 
+normalizeV2 :: Expr Vec2 -> Expr Vec2
+normalizeV2 = call FnNormalizeV2
+
+normalizeV3 :: Expr Vec3 -> Expr Vec3
+normalizeV3 = call FnNormalizeV3
+
 dotV2 :: Expr Vec2 -> Expr Vec2 -> Expr Number
 dotV2 = call2 FnDotV2
 
@@ -494,7 +506,10 @@ dotC :: Expr Complex -> Expr Complex -> Expr Number
 dotC  = call2 FnDotC
 
 
--- Useful Instances
+-- Useful Instances. Regard these with a little suspicion.
+-- Laws should hold *extensionally* when interpreted by the GPU,
+-- but might not hold *intensionally* when comparing expressions.
+
 -- Bool
 instance heytingAlgebraExprBool :: HeytingAlgebra (Expr Boolean) where
   ff = bool false
@@ -522,12 +537,12 @@ instance commutativeRingExprNumber :: CommutativeRing (Expr Number)
 instance euclideanRingExprNumber :: EuclideanRing (Expr Number) where
   div = binary BinDiv
   degree _ = 1
-  mod _ _ = num zero -- A proper lawful definition, but not a useful one for shader programming
+  mod _ _ = num zero
 
 instance divisionRingExprNumber :: DivisionRing (Expr Number) where
   recip e = one / e
 
-instance additevGroupExprNumber :: AdditiveGroup (Expr Number) where
+instance additiveGroupExprNumber :: AdditiveGroup (Expr Number) where
   zeroV = zero
   addV = add
   subV = sub
@@ -554,7 +569,7 @@ instance commutativeRingExprComplex :: CommutativeRing (Expr Complex)
 
 instance euclideanRingExprComplex :: EuclideanRing (Expr Complex) where
   degree _ = 1
-  mod _ _ = fromComplex zero -- A proper lawful definition, but not a useful one for shader programming
+  mod _ _ = fromComplex zero
   div = binary BinDivC
 
 instance divisionRingExprComplex :: DivisionRing (Expr Complex) where
