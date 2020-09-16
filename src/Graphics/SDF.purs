@@ -1,9 +1,10 @@
 module Graphics.SDF
   ( SDF
-  , point
-  , circle
   , projectSegment
+  , circle
+  , point
   , segment
+  , plane
   , union
   , intersection
   , difference
@@ -33,6 +34,15 @@ liftF f a = pure $ f a
 -- Geometry
 -------------------------------------------------------------------------------
 
+-- | The point closest to a query point along a line segment defined by its endpoints
+projectSegment :: forall v. VecExpr v => Expr v -> Expr v -> v |> v
+projectSegment a b p = do
+  pa <- decl $ p ^-^ a
+  ba <- decl $ b ^-^ a
+  fac <- decl $ saturate $ (pa <.> ba) / (ba <.> ba)
+  c <- decl $ a ^+^ fac *^ ba
+  pure c
+
 -- | `point` is a point centered at the origin
 point :: forall v. VecExpr v => SDF v
 point = length >>> pure
@@ -44,21 +54,16 @@ circle r p = do
   d <- decl $ c - (num r)
   pure $ d
 
--- | The point closest to a query point along a line segment defined by its endpoints
-projectSegment :: forall v. VecExpr v => Expr v -> Expr v -> v |> v
-projectSegment a b p = do
-  pa <- decl $ p ^-^ a
-  ba <- decl $ b ^-^ a
-  fac <- decl $ saturate $ (pa <.> ba) / (ba <.> ba)
-  c <- decl $ a ^+^ fac *^ ba
-  pure c
-
 -- | A line segment defined by its endpoints
 segment :: forall v. VecExpr v => Castable v => v -> v -> SDF v
 segment a b p = do
   c <- projectSegment (cast a) (cast b) p
   d <- decl $ length (p ^-^ c)
   pure d
+
+-- | A plane centered at the origin, defined by its normal vector
+plane :: forall v. VecExpr v => Castable v => v -> SDF v
+plane n p = pure $ (cast n) <.> p
 
 -------------------------------------------------------------------------------
 -- Transform

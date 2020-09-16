@@ -14,7 +14,7 @@ import Data.Tuple (Tuple(..))
 import Data.Vec3 (Vec3)
 import Data.VectorSpace ((*^), (^+^), (^-^))
 import Graphics.SDF (circle)
-import Shader.Expr (Expr, abs, done, ifE, length, loop, lte, max, min, num, projX, projY, projZ, snd, tuple, vec2, vec3, normalized)
+import Shader.Expr (Expr, abs, done, ifE, length, loop, lte, max, min, normalized, num, projX, projY, projZ, vec2, vec3)
 import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (type (|>), decl, rec)
 

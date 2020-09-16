@@ -1,4 +1,4 @@
-module Data.Vec3 (Vec3(..)) where
+module Data.Vec3 (Vec3(..), unitX, unitY, unitZ) where
 
 import Prelude
 
@@ -17,3 +17,12 @@ instance vectorSpaceVec3 :: VectorSpace Number Vec3 where
 
 instance innerSpaceVec3 :: InnerSpace Number Vec3 where
   dot (Vec3 v1) (Vec3 v2) = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+
+unitX :: Vec3
+unitX = Vec3 { x: 1.0, y: 0.0, z: 0.0 }
+
+unitY :: Vec3
+unitY = Vec3 { x: 0.0, y: 1.0, z: 0.0 }
+
+unitZ :: Vec3
+unitZ = Vec3 { x: 0.0, y: 0.0, z: 1.0 }
