@@ -63,7 +63,7 @@ segment a b p = do
 
 -- | A plane centered at the origin, defined by its normal vector
 plane :: forall v. VecExpr v => Castable v => v -> SDF v
-plane n p = pure $ (cast n) <.> p
+plane n p = decl $ (cast n) <.> p
 
 -------------------------------------------------------------------------------
 -- Transform
