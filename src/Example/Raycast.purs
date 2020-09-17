@@ -2,26 +2,26 @@ module Example.Raycast (source) where
 
 import Prelude
 
-import Data.Color (Color)
+import Data.Color (Color(..))
 import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
 import Data.Vec3 (Vec3(..), unitZ)
-import Data.VectorSpace (normalized, (*^), (<.>), (^+^))
+import Data.VectorSpace (normalized, (*^), (^+^))
+import Graphics.BRDF (diffuseBRDF, emissiveBRDF, sample)
 import Graphics.Camera (Camera, Ray, perspectiveCam)
 import Graphics.Camera as Cam
-import Graphics.ColorRamp (grayscaleRamp)
 import Graphics.DomainTransform (translate)
 import Graphics.SDF (plane, union)
-import Graphics.SDF3 (SDF3, raymarch, surfaceNormal, torus)
+import Graphics.SDF.SDF3 (SDF3, raymarch, surfaceNormal, torus)
 import Math (tau)
-import Shader.Expr (ifE, lt, num, saturate, tuple)
+import Shader.Expr (ifE, lt, num, tuple)
 import Shader.Expr.Cast (cast, from)
 import Shader.ExprBuilder (type (|>), decl)
 import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
 
 program :: ShaderProgram Vec2 Color
-program = shaderProgram $ cam >=> renderLighting sdf >=> grayscaleRamp
+program = shaderProgram $ cam >=> renderLighting sdf
   where
     cam :: Camera
     cam =
@@ -41,7 +41,7 @@ renderDepth sdf ray = do
   dist <- raymarch sdf ray
   pure $ dist - num 2.0
 
-renderLighting :: SDF3 -> Ray |> Number
+renderLighting :: SDF3 -> Ray |> Color
 renderLighting sdf ray = do
   let Tuple pos dir = from ray
   dist   <- raymarch sdf ray
@@ -50,12 +50,23 @@ renderLighting sdf ray = do
   -- Lighting
   let lightDir = cast $ normalized $ Vec3 { x: 1.0, y: 0.0, z: 2.0 }
   let lightRay = tuple (point ^+^ (num 0.001) *^ normal) lightDir
-  let albedo   = num 0.8
-  diffuse <- decl $ saturate $ normal <.> lightDir
+  shade   <- castShadowRay sdf lightRay
+  let albedo = Color 0.8 0.8 0.8
+  let brdf   = (shade *^ diffuseBRDF albedo) + (emissiveBRDF (0.3 *^ albedo)) 
+  sample brdf $ {
+    view: dir,
+    normal,
+    light: {
+      direction: lightDir,
+      intensity: cast $ Color 0.9 0.9 1.0
+    }
+  }
+
+castShadowRay :: SDF3 -> Ray |> Number
+castShadowRay sdf lightRay = do
   objDist <- raymarch sdf lightRay
   shade   <- decl $ ifE (objDist `lt` (num 10.0)) zero one
-  ambient <- decl $ num 0.2
-  pure $ albedo * (ambient + diffuse * shade)
+  pure shade
 
 source :: String
 source = toGLSL $ runShaderProgram program

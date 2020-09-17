@@ -1,4 +1,4 @@
-module Graphics.SDF3
+module Graphics.SDF.SDF3
   ( SDF3
   , sphere
   , box
@@ -79,6 +79,5 @@ surfaceNormal sdf v = do
   dx <- sdf (v ^+^ eps *^ i)  `lift2 (-)`  sdf (v ^-^ eps *^ i)
   dy <- sdf (v ^+^ eps *^ j)  `lift2 (-)`  sdf (v ^-^ eps *^ j)
   dz <- sdf (v ^+^ eps *^ k)  `lift2 (-)`  sdf (v ^-^ eps *^ k)
-  n  <- decl $ vec3 dx dy dz
-  n' <- decl $ normalized n
-  pure n'
+  n  <- decl $ normalized $ vec3 dx dy dz
+  pure n
