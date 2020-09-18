@@ -1,4 +1,4 @@
-module Graphics.BRDF (diffuseBRDF, emissiveBRDF, toBRDFInput, sample, BRDF, BRDFInput, BRDFInputRecord) where
+module Graphics.BRDF (diffuseBRDF, emissiveBRDF, specularBRDF, toBRDFInput, sample, BRDF, BRDFInput, BRDFInputRecord) where
 
 import Prelude
 
@@ -7,10 +7,10 @@ import Data.Color (Color)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (type (/\))
 import Data.Vec3 (Vec3)
-import Data.VectorSpace (class AdditiveGroup, class VectorSpace, (*^), (<.>))
-import Shader.Expr (Expr, tuple)
+import Data.VectorSpace (class AdditiveGroup, class VectorSpace, (*^), (<.>), (^+^))
+import Shader.Expr (Expr, normalized, pow, saturate, tuple)
 import Shader.Expr.Cast (cast, from)
-import Shader.ExprBuilder (type (|>), Builder)
+import Shader.ExprBuilder (type (|>), Builder, decl)
 
 -- TODO: Why can't I use a newtype wrapper instead?
 data BRDF = BRDF (BRDFInput |> Color)
@@ -22,7 +22,7 @@ type BRDFInputRecord = {
   normal :: Expr Vec3,
   light :: {
     direction :: Expr Vec3,
-    intensity :: Expr Color
+    intensity :: Expr Color -- TODO: factor this out?
   }
 }
 
@@ -58,7 +58,7 @@ instance additiveBRDF :: AdditiveGroup BRDF where
   negateV = negate
 
 instance vectorSpaceBRDF :: VectorSpace (Expr Number) BRDF where
-  scale x = over $ map $ map (x *^ _)
+  scale x = over $ map $ map ((*^) x)
 
 
 toBRDFInput :: BRDFInputRecord -> Expr BRDFInput
@@ -78,10 +78,31 @@ sample brdf input = unwrap brdf $ toBRDFInput input
 
 -- BRDFs
 diffuseBRDF :: Color -> BRDF
-diffuseBRDF albedo = wrap $ \info ->
+diffuseBRDF albedo = wrap \info -> do
   let { view, normal, light } = fromBRDFInput info
-  in pure $ ((normal <.> light.direction) *^ light.intensity) * (cast albedo)
-  
+  diff <- decl $ ((normal <.> light.direction) *^ light.intensity) * (cast albedo)
+  pure $ diff
 
 emissiveBRDF :: Color -> BRDF
 emissiveBRDF color = wrap $ const $ pure (cast color)
+
+specularBRDF :: Number -> BRDF
+specularBRDF shininess = wrap \info -> do
+  let { view, normal: n, light } = fromBRDFInput info
+  half <- decl $ normalized $ light.direction ^+^ view
+  fac  <- decl $ saturate $ n <.> half
+  int  <- decl $ pow fac (cast shininess)
+  out  <- decl $ int *^ light.intensity
+  pure out
+  
+
+-- //Calculate the half vector between the light vector and the view vector.
+-- //This is typically slower than calculating the actual reflection vector
+-- // due to the normalize function's reciprocal square root
+-- float3 H = normalize(lightDir + viewDir);
+
+-- //Intensity of the specular light
+-- float NdotH = dot(normal, H);
+-- intensity = pow(saturate(NdotH), specularHardness);
+
+

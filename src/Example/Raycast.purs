@@ -7,7 +7,7 @@ import Data.Tuple (Tuple(..))
 import Data.Vec2 (Vec2)
 import Data.Vec3 (Vec3(..), unitZ)
 import Data.VectorSpace (normalized, (*^), (^+^))
-import Graphics.BRDF (diffuseBRDF, emissiveBRDF, sample)
+import Graphics.BRDF (diffuseBRDF, emissiveBRDF, sample, specularBRDF)
 import Graphics.Camera (Camera, Ray, perspectiveCam)
 import Graphics.Camera as Cam
 import Graphics.DomainTransform (translate)
@@ -50,9 +50,9 @@ renderLighting sdf ray = do
   -- Lighting
   let lightDir = cast $ normalized $ Vec3 { x: 1.0, y: 0.0, z: 2.0 }
   let lightRay = tuple (point ^+^ (num 0.001) *^ normal) lightDir
-  shade   <- castShadowRay sdf lightRay
-  let albedo = Color 0.8 0.8 0.8
-  let brdf   = (shade *^ diffuseBRDF albedo) + (emissiveBRDF (0.3 *^ albedo)) 
+  shade <- castShadowRay sdf lightRay
+  let albedo = Color 0.7 0.7 0.7
+  let brdf   = shade *^ (diffuseBRDF albedo + num 0.5 *^ specularBRDF 4.0) + (num 0.3 *^ emissiveBRDF albedo)
   sample brdf $ {
     view: dir,
     normal,

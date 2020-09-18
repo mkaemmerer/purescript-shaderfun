@@ -313,7 +313,7 @@ instance identityFoldComplex :: IdentityFold Complex where
 instance identityFoldColor :: IdentityFold Color where
   iFoldL (BinPlusCol e1 e2)  = if e1 == zeroV then Just e2 else Nothing
   iFoldL (BinTimesCol e1 e2) = if e1 == zeroV then Just e2 else Nothing
-  iFoldL (BinScaleCol e1 e2) = if e1 == zeroV then Just e2 else Nothing
+  iFoldL (BinScaleCol e1 e2) = if e1 == one then Just e2 else Nothing
   iFoldL _ = Nothing
   iFoldR (BinPlusCol e1 e2)  = if e2 == zeroV then Just e1 else Nothing
   iFoldR (BinMinusCol e1 e2) = if e2 == zeroV then Just e1 else Nothing
