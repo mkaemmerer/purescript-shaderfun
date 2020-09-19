@@ -94,15 +94,3 @@ specularBRDF shininess = wrap \info -> do
   int  <- decl $ pow fac (cast shininess)
   out  <- decl $ int *^ light.intensity
   pure out
-  
-
--- //Calculate the half vector between the light vector and the view vector.
--- //This is typically slower than calculating the actual reflection vector
--- // due to the normalize function's reciprocal square root
--- float3 H = normalize(lightDir + viewDir);
-
--- //Intensity of the specular light
--- float NdotH = dot(normal, H);
--- intensity = pow(saturate(NdotH), specularHardness);
-
-
