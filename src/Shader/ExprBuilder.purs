@@ -31,7 +31,7 @@ newVar :: Builder String
 newVar = do
   { count } <- get
   _ <- modify $ _ { count = count+1 }
-  pure $ "v_" <> show count
+  pure $ "s" <> show count
 
 -- | `match` pattern matches on an expression of type `Either a b`
 -- | and chooses the left or right branch accordingly

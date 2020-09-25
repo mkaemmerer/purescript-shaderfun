@@ -2,16 +2,16 @@ module Shader.Expr.Normalization (normalize, subst) where
 
 import Prelude
 
-import Control.Monad.Cont (Cont, cont, runCont)
 import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafePartial)
 import Shader.Expr (BinaryExpr(..), Expr(..), complex, projImaginary, projReal)
-import Shader.Expr.Traversal (on, onA)
+import Shader.Expr.Binding (makeBindings)
+import Shader.Expr.Traversal (on)
 import Unsafe.Coerce (unsafeCoerce)
 
 
 normalize :: forall a. Expr a -> Expr a
-normalize = unsafePartial $ liftDecls >>> elaborate >>> simplify
+normalize = unsafePartial $ elaborate >>> simplify >>> makeBindings
 
 subst :: forall a b. String -> Expr a -> Expr b -> Expr b
 subst v e1 (EVar n)
@@ -56,16 +56,3 @@ simplify e = on simplify e
 
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
-
-
--- TODO: reintroduce bindings by performing common-subexpression-elimination
--- Hoist declarations to top level
-liftDecls :: forall a. Expr a -> Expr a
-liftDecls e = runCont (liftDecl e) identity
-
-liftDecl :: forall a b. Expr a -> Cont (Expr b) (Expr a)
-liftDecl (EBind name e1 e2) = do
-  let mkBind e1' e2' = EBind name (eraseType e1') e2'
-  e1' <- liftDecl e1
-  cont \f -> mkBind e1' (runCont (liftDecl e2) f)
-liftDecl e = onA liftDecl e
