@@ -3,7 +3,6 @@ module Shader.ExprBuilder
   , BuilderState
   , ExprBuilder
   , ShaderFunc
-  , decl
   , match
   , rec
   , runExprBuilder
@@ -15,7 +14,7 @@ import Prelude hiding (unit)
 import Control.Monad.State (State, get, modify, runState)
 import Data.Either (Either)
 import Data.Tuple (Tuple(..))
-import Shader.Expr (class TypedExpr, Expr(..), bindE, matchE, recE)
+import Shader.Expr (class TypedExpr, Expr(..), matchE, recE)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | `Builder` is a monad for building expressions with unique variable names
@@ -40,17 +39,6 @@ newVar = do
   let name = "v_" <> show count
   _ <- modify $ _ { count = count+1 }
   pure name
-
--- | `decl` yields an expression which is semantically equivalent
--- | but could be more operationally efficient.
--- | Use `decl` to avoid reevaluating common sub expressions.
-decl :: forall t. (TypedExpr t) => Expr t -> ExprBuilder t
-decl e = do
-  name <- newVar
-  let build b = bindE name e b
-  { cont } <- get
-  _ <- modify $ _ { cont = build >>> (eraseType cont) }
-  pure $ EVar name
 
 -- | `match` pattern matches on an expression of type `Either a b`
 -- | and chooses the left or right branch accordingly

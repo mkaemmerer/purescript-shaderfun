@@ -10,7 +10,7 @@ import Graphics.DomainTransform (scale)
 import Graphics.DomainTransform as Dom
 import Shader.Expr (Expr, cos, normalized, sin, tuple, vec3)
 import Shader.Expr.Cast (cast, from)
-import Shader.ExprBuilder (type (|>), decl)
+import Shader.ExprBuilder (type (|>))
 
 type Radians = Number
 type Pos = Vec3
@@ -21,16 +21,17 @@ overPos f ray = tuple <$> f pos <*> pure dir
   where
     (Tuple pos dir) = from ray
 
+-- Rotate ray in the XY plane. TODO: generalized rotations
 rotateRay :: Radians -> Ray |> Ray
-rotateRay a r = do
-  let Tuple pos dir = from r
-  let pt = from pos
-  let di = from dir
-  ss <- decl $ sin $ cast a
-  cc <- decl $ cos $ cast a
-  pos' <- decl $ vec3 (pt.x * cc - pt.y * ss) (pt.x * ss + pt.y * cc) pt.z
-  dir' <- decl $ vec3 (di.x * cc - di.y * ss) (di.x * ss + di.y * cc) di.z
-  pure $ tuple pos' dir'
+rotateRay a r = pure $ tuple pos' dir'
+  where
+    Tuple pos dir = from r
+    pt = from pos
+    di = from dir
+    ss = sin $ cast a
+    cc = cos $ cast a
+    pos' = vec3 (pt.x * cc - pt.y * ss) (pt.x * ss + pt.y * cc) pt.z
+    dir' = vec3 (di.x * cc - di.y * ss) (di.x * ss + di.y * cc) di.z
 
 -- | A Camera maps positions in the 2d plane to normalized rays in 3d
 type Camera = Vec2 |> Ray
@@ -47,7 +48,7 @@ fwd = cast unitY
 
 -- | A perspective camera, centered at the origin, casting rays along the +Y direction
 perspectiveCam :: Camera
-perspectiveCam v = decl $ tuple ro rd
+perspectiveCam v = pure $ tuple ro rd
   where
     v' = from v
     rd = normalized $ fwd ^+^ v'.x *^ rt ^+^ v'.y *^ up

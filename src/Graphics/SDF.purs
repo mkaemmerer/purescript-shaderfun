@@ -21,7 +21,7 @@ import Control.Apply (lift2)
 import Data.VectorSpace (lerp, (*^), (<.>), (^+^), (^-^))
 import Shader.Expr (class VecExpr, Expr, abs, length, max, min, num, saturate)
 import Shader.Expr.Cast (class Castable, cast)
-import Shader.ExprBuilder (type (|>), decl)
+import Shader.ExprBuilder (type (|>))
 
 -- | An SDF is a relation that maps a domain value to a signed distance
 -- | positive distances represent the exterior, and negative distances represent the interior
@@ -36,12 +36,12 @@ liftF f a = pure $ f a
 
 -- | The point closest to a query point along a line segment defined by its endpoints
 projectSegment :: forall v. VecExpr v => Expr v -> Expr v -> v |> v
-projectSegment a b p = do
-  pa <- decl $ p ^-^ a
-  ba <- decl $ b ^-^ a
-  fac <- decl $ saturate $ (pa <.> ba) / (ba <.> ba)
-  c <- decl $ a ^+^ fac *^ ba
-  pure c
+projectSegment a b p = pure c
+  where
+    pa  = p ^-^ a
+    ba  = b ^-^ a
+    fac = saturate $ (pa <.> ba) / (ba <.> ba)
+    c   = a ^+^ fac *^ ba
 
 -- | `point` is a point centered at the origin
 point :: forall v. VecExpr v => SDF v
@@ -51,19 +51,17 @@ point = length >>> pure
 circle :: forall v. VecExpr v => Number -> SDF v
 circle r p = do
   c <- point p
-  d <- decl $ c - (num r)
-  pure $ d
+  pure $ c - (num r)
 
 -- | A line segment defined by its endpoints
 segment :: forall v. VecExpr v => Castable v => v -> v -> SDF v
 segment a b p = do
   c <- projectSegment (cast a) (cast b) p
-  d <- decl $ length (p ^-^ c)
-  pure d
+  pure $ length (p ^-^ c)
 
 -- | A plane centered at the origin, defined by its normal vector
 plane :: forall v. VecExpr v => Castable v => v -> SDF v
-plane n p = decl $ (cast n) <.> p
+plane n p = pure $ (cast n) <.> p
 
 -------------------------------------------------------------------------------
 -- Transform
@@ -71,7 +69,7 @@ plane n p = decl $ (cast n) <.> p
 
 -- | Scale an sdf uniformly
 scaleSDF :: forall v. VecExpr v => Number -> SDF v -> SDF v
-scaleSDF fac sdf = scaleDomain >=> decl >=> sdf >=> scaleRange
+scaleSDF fac sdf = scaleDomain >=> sdf >=> scaleRange
   where
   scaleDomain v = pure $ (num (1.0 / fac)) *^ v
   scaleRange r = pure $ r * num fac

@@ -19,7 +19,7 @@ import Graphics.SDF (projectSegment)
 import Math (tau)
 import Shader.Expr (Expr, abs, gt, gte, ifE, length, lt, max, min, num, projX, projY, sqrt, vec2)
 import Shader.Expr.Cast (cast, from)
-import Shader.ExprBuilder (type (|>), decl)
+import Shader.ExprBuilder (type (|>))
 
 -- | A signed distance field over the domain R2
 type SDF2 = Vec2 |> Number
@@ -39,12 +39,11 @@ pairs xs = (Tuple e s) : (zip (toArray xs) (tail xs))
 
 -- | `box v` is a rectangle centered at the origin with a corner at `v`
 box :: Vec2 -> SDF2
-box corner p = do
-  d <- decl $ (absV p) ^-^ (cast corner)
-  let d' = from d
-  c <- decl $ vec2 (max d'.x zero) (max d'.y zero)
-  m <- decl $ (min (max d'.x d'.y) zero)
-  pure $ (length c) + m
+box corner p = pure $ (length c) + m
+  where
+    d = from $ (absV p) ^-^ (cast corner)
+    c = vec2 (max d.x zero) (max d.y zero)
+    m = (min (max d.x d.y) zero) 
 
 absV :: Expr Vec2 -> Expr Vec2
 absV v = vec2 (abs $ projX v) (abs $ projY v)
@@ -56,9 +55,9 @@ polygon vs
 
 polygon' :: NonEmptyArray Vec2 -> SDF2
 polygon' vs p = do
-    pv <- decl $ p ^-^ v0
-    d0 <- decl $ pv <.> pv
-    s0 <- decl $ num $ if len `mod` 2 == 0 then 1.0 else -1.0
+    let pv = p ^-^ v0
+    let d0 = pv <.> pv
+    let s0 = num $ if len `mod` 2 == 0 then 1.0 else -1.0
     Tuple d s <- foldM polygonSegment (Tuple d0 s0) segments
     pure $ (sqrt d) * s
   where
@@ -69,18 +68,16 @@ polygon' vs p = do
   polygonSegment (Tuple d0 s0) (Tuple a b) = do
     -- Distance
     x <- projectSegment a b p
-    c <- decl $ p ^-^ x
-    d <- decl $ min d0 (c <.> c)
+    let c = p ^-^ x
+    let d = min d0 (c <.> c)
     -- Sign
-    e <- decl $ a ^-^ b
-    w <- decl $ p ^-^ b
-    let et = from e
-    let wt = from w
-    c1 <- decl $ pt.y `gte` (projY b)
-    c2 <- decl $ pt.y `lt` (projY a)
-    c3 <- decl $ (et.x * wt.y) `gt` (et.y * wt.x)
-    cc <- decl $ (c1 && c2 && c3) || (not c1 && not c2 && not c3)
-    s <- decl $ s0 * (ifE cc (num $ 1.0) (num $ -1.0))
+    let e = from $ a ^-^ b
+    let w = from $ p ^-^ b
+    let c1 = pt.y `gte` (projY b)
+    let c2 = pt.y `lt` (projY a)
+    let c3 = (e.x * w.y) `gt` (e.y * w.x)
+    let cc = (c1 && c2 && c3) || (not c1 && not c2 && not c3)
+    let s = s0 * (ifE cc (num $ 1.0) (num $ -1.0))
     pure $ Tuple d s
 
 -------------------------------------------------------------------------------

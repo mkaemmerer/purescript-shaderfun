@@ -10,7 +10,7 @@ import Data.Vec3 (Vec3)
 import Data.VectorSpace (class AdditiveGroup, class VectorSpace, (*^), (<.>), (^+^))
 import Shader.Expr (Expr, normalized, pow, saturate, tuple)
 import Shader.Expr.Cast (cast, from)
-import Shader.ExprBuilder (type (|>), Builder, decl)
+import Shader.ExprBuilder (type (|>), Builder)
 
 -- TODO: Why can't I use a newtype wrapper instead?
 data BRDF = BRDF (BRDFInput |> Color)
@@ -78,19 +78,23 @@ sample brdf input = unwrap brdf $ toBRDFInput input
 
 -- BRDFs
 diffuseBRDF :: Color -> BRDF
-diffuseBRDF albedo = wrap \info -> do
-  let { view, normal, light } = fromBRDFInput info
-  diff <- decl $ ((normal <.> light.direction) *^ light.intensity) * (cast albedo)
-  pure $ diff
+diffuseBRDF albedo = wrap \info ->
+  let
+    { view, normal, light } = fromBRDFInput info
+    diff = ((normal <.> light.direction) *^ light.intensity) * (cast albedo)
+  in
+    pure $ diff
 
 emissiveBRDF :: Color -> BRDF
 emissiveBRDF color = wrap $ const $ pure (cast color)
 
 specularBRDF :: Number -> BRDF
-specularBRDF shininess = wrap \info -> do
-  let { view, normal: n, light } = fromBRDFInput info
-  half <- decl $ normalized $ light.direction ^+^ view
-  fac  <- decl $ saturate $ n <.> half
-  int  <- decl $ pow fac (cast shininess)
-  out  <- decl $ int *^ light.intensity
-  pure out
+specularBRDF shininess = wrap \info ->
+  let
+    { view, normal: n, light } = fromBRDFInput info
+    half = normalized $ light.direction ^+^ view
+    fac  = saturate $ n <.> half
+    int  = pow fac (cast shininess)
+    out  = int *^ light.intensity
+  in
+    pure out

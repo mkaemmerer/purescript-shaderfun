@@ -16,7 +16,7 @@ import Graphics.SDF.SDF3 (SDF3, raymarch, surfaceNormal, torus)
 import Math (tau)
 import Shader.Expr (ifE, lt, num, tuple)
 import Shader.Expr.Cast (cast, from)
-import Shader.ExprBuilder (type (|>), decl)
+import Shader.ExprBuilder (type (|>))
 import Shader.ExprFunction (ShaderProgram, runShaderProgram, shaderProgram)
 import Shader.GLSL (toGLSL)
 
@@ -45,7 +45,7 @@ renderLighting :: SDF3 -> Ray |> Color
 renderLighting sdf ray = do
   let Tuple pos dir = from ray
   dist   <- raymarch sdf ray
-  point  <- decl $ pos ^+^ dist *^ dir
+  let point = pos ^+^ dist *^ dir
   normal <- surfaceNormal sdf point
   -- Lighting
   let lightDir = cast $ normalized $ Vec3 { x: 1.0, y: 0.0, z: 2.0 }
@@ -65,8 +65,9 @@ renderLighting sdf ray = do
 castShadowRay :: SDF3 -> Ray |> Number
 castShadowRay sdf lightRay = do
   objDist <- raymarch sdf lightRay
-  shade   <- decl $ ifE (objDist `lt` (num 10.0)) zero one
-  pure shade
+  pure $ ifE (objDist `lt` maxDist) zero one
+  where
+    maxDist = num 10.0
 
 source :: String
 source = toGLSL $ runShaderProgram program
