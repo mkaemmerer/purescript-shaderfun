@@ -1,10 +1,8 @@
 module Shader.Expr
   ( Expr(..)
-  , Type(..)
   , UnaryExpr(..)
   , BinaryExpr(..)
   , CallExpr(..)
-  , class TypedExpr
   , class VecExpr
   , class HasX
   , class HasY
@@ -67,7 +65,6 @@ module Shader.Expr
   , sin
   , smoothstep
   , sqrt
-  , typeof
   , vec2
   , vec3
   ) where
@@ -84,16 +81,6 @@ import Data.Vec3 (Vec3(..))
 import Data.VectorSpace (class AdditiveGroup, class InnerSpace, class VectorSpace, negateV, zeroV, (*^), (<.>), (^+^), (^-^))
 import Unsafe.Coerce (unsafeCoerce)
 
-data Type
-  = TBoolean
-  | TScalar
-  | TVec2
-  | TVec3
-  | TComplex
-  | TColor
-  | TUnit
-  | TTuple Type Type
-  | TEither Type Type
 
 data UnaryExpr t
   = UnNegate (Expr Number)
@@ -183,59 +170,14 @@ data Expr t
   | EInr (Expr (forall a. Either a t))
   | ECall (CallExpr t)
   | EIf (Expr Boolean) (Expr t) (Expr t)
-  | EBind String Type (forall a. Expr a) (Expr t)
+  | EBind String (forall a. Expr a) (Expr t)
   | ERec Int String (Expr t) (Expr (Either t t))
 
-derive instance eqType :: Eq Type
 derive instance eqExpr :: Eq (Expr a)
 derive instance eqUnaryExpr :: Eq (UnaryExpr a)
 derive instance eqBinaryExpr :: Eq (BinaryExpr a)
 derive instance eqCallExpr :: Eq (CallExpr a)
 
-
-type Tag = Expr Boolean
-
-tagLeft :: Tag
-tagLeft = tt
-
-tagRight :: Tag
-tagRight = ff
-
-
-class TypedExpr a where
-  typeof :: (Expr a) -> Type
-
-instance typedExprExprBoolean :: TypedExpr Boolean where
-  typeof e = TBoolean
-
-instance typedExprExprNumber :: TypedExpr Number where
-  typeof e = TScalar
-
-instance typedExprExprVec2 :: TypedExpr Vec2 where
-  typeof e = TVec2
-
-instance typedExprExprVec3 :: TypedExpr Vec3 where
-  typeof e = TVec3
-
-instance typedExprExprComplex :: TypedExpr Complex where
-  typeof e = TComplex
-
-instance typedExprExprColor :: TypedExpr Color where
-  typeof e = TColor
-
-instance typedExprUnit :: TypedExpr Unit where
-  typeof e = TUnit
-
-instance typedExprExprTuple :: (TypedExpr a, TypedExpr b) => TypedExpr (Tuple a b) where
-  typeof e = TTuple (typeof $ fst e) (typeof $ snd e)
-
-instance typedExprExprEither :: (TypedExpr a, TypedExpr b) => TypedExpr (Either a b) where
-  typeof e = TEither (typeof $ asLeft e) (typeof $ asRight e)
-    where
-      asLeft :: Expr (Either a b) -> (Expr a)
-      asLeft ex = unsafeCoerce ex
-      asRight :: Expr (Either a b) -> (Expr b)
-      asRight ex = unsafeCoerce ex
 
 -- Unsafe, private constructors
 eraseType :: forall a b. Expr a -> Expr b
@@ -306,8 +248,8 @@ loop e = inl e
 done :: forall a. Expr a -> Expr (Either a a)
 done e = inr e
 
-bindE :: forall s t. (TypedExpr s) => String -> Expr s -> Expr t -> Expr t
-bindE name e1 e2 = EBind name (typeof e1) (eraseType e1) e2
+bindE :: forall s t. String -> Expr s -> Expr t -> Expr t
+bindE name e1 e2 = EBind name (eraseType e1) e2
 
 matchE :: forall a b c. Expr (Either a b) -> String -> (Expr a -> Expr c) -> (Expr b -> Expr c) -> Expr c
 matchE e name lBranch rBranch = EMatch (eraseType e) name_l expr_l name_r expr_r
@@ -352,8 +294,7 @@ p :: Expr Vec2
 p = EVar "p"
 
 class
-  ( TypedExpr v
-  , VectorSpace (Expr Number) (Expr v)
+  ( VectorSpace (Expr Number) (Expr v)
   , InnerSpace (Expr Number) (Expr v)
   ) <= VecExpr v where
   length :: Expr v -> Expr Number

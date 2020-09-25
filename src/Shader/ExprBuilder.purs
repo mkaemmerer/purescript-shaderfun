@@ -13,8 +13,7 @@ import Prelude hiding (unit)
 
 import Control.Monad.State (State, evalState, get, modify)
 import Data.Either (Either)
-import Shader.Expr (class TypedExpr, Expr(..), matchE, recE)
-import Unsafe.Coerce (unsafeCoerce)
+import Shader.Expr (Expr(..), matchE, recE)
 
 -- | `Builder` is a monad for building expressions with unique variable names
 type Builder a = State BuilderState a
@@ -28,15 +27,11 @@ infixr 4 type ShaderFunc as |>
 emptyState :: BuilderState
 emptyState = { count: 0 }
 
-eraseType :: forall a b. (a -> a) -> (b -> b)
-eraseType = unsafeCoerce
-
 newVar :: Builder String
 newVar = do
   { count } <- get
-  let name = "v_" <> show count
   _ <- modify $ _ { count = count+1 }
-  pure name
+  pure $ "v_" <> show count
 
 -- | `match` pattern matches on an expression of type `Either a b`
 -- | and chooses the left or right branch accordingly
@@ -49,7 +44,7 @@ match e l r = do
 -- | Recursive function should yield an expression with type `Either t t`
 -- | where right values denotes a final result, and left values denote in progress computation.
 -- | Use `done` and `loop` to tag expressions.
-rec :: forall t. (TypedExpr t) => Int -> (Expr t -> ExprBuilder (Either t t)) -> Expr t -> ExprBuilder t
+rec :: forall t. Int -> (Expr t -> ExprBuilder (Either t t)) -> Expr t -> ExprBuilder t
 rec n f seed = do
   name <- newVar
   loop <- f $ EVar name

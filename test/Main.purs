@@ -47,7 +47,7 @@ showExpr (ESnd e)           = showCtor "ESnd" $ [showExpr e]
 showExpr (EInl e)           = showCtor "EInl" $ [showExpr e]
 showExpr (EInr e)           = showCtor "EInr" $ [showExpr e]
 showExpr (EMatch e lname l rname r) = showCtor "EMatch" $ [showExpr e, lname, showExpr l, rname, showExpr r]
-showExpr (EBind v ty e1 e2)         = showCtor "EBind" $ [v, showExpr e1, showExpr e2]
+showExpr (EBind v e1 e2)            = showCtor "EBind" $ [v, showExpr e1, showExpr e2]
 showExpr _ = ""
 
 showBinaryExpr :: forall a. BinaryExpr a -> String

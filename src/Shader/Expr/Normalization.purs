@@ -5,7 +5,7 @@ import Prelude
 import Control.Monad.Cont (Cont, cont, runCont)
 import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafePartial)
-import Shader.Expr (BinaryExpr(..), Expr(..), Type(..), complex, fst, projImaginary, projReal, snd, tuple)
+import Shader.Expr (BinaryExpr(..), Expr(..), complex, projImaginary, projReal)
 import Shader.Expr.Traversal (on, onA)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -35,29 +35,6 @@ elaborate (EBinary (BinDivC c1 c2)) = eraseType $ complex nr ni
   nr = (r1*r2 + i1*i2) / d
   ni = (r2*i1 - r1*i2) / d
   d  = r2*r2 + i2*i2
--- Elaborate types
-elaborate (EBind name ty e1 e2) = case ty of
-  TBoolean              -> EBind name ty (elaborate e1) (elaborate e2)
-  TScalar               -> EBind name ty (elaborate e1) (elaborate e2)
-  TVec2                 -> EBind name ty (elaborate e1) (elaborate e2)
-  TVec3                 -> EBind name ty (elaborate e1) (elaborate e2)
-  TComplex              -> EBind name ty (elaborate e1) (elaborate e2)
-  TColor                -> EBind name ty (elaborate e1) (elaborate e2)
-  TUnit                 -> elaborate e2'
-    where
-      e2' = subst name EUnit e2
-  -- TODO: how to elaborate either types
-  (TEither tl tr)       -> EBind name ty (elaborate e1) (elaborate e2)
-  (TTuple t_fst t_snd)  -> elaborate $
-    EBind name_fst t_fst (eraseType e1_fst) $
-    EBind name_snd t_snd (eraseType e1_snd) $ e2'
-    where
-      e1_fst   = fst e1
-      e1_snd   = snd e1
-      name_fst = name <> "_fst"
-      name_snd = name <> "_snd"
-      tup      = tuple (EVar name_fst) (EVar name_snd)
-      e2'      = subst name (eraseType tup) e2
 elaborate e = on elaborate e
 
 -- TODO: not sure this fully simplifies all cases. I.e. Inl Inr?
@@ -87,8 +64,8 @@ liftDecls :: forall a. Expr a -> Expr a
 liftDecls e = runCont (liftDecl e) identity
 
 liftDecl :: forall a b. Expr a -> Cont (Expr b) (Expr a)
-liftDecl (EBind name ty e1 e2) = do
-  let mkBind e1' e2' = EBind name ty (eraseType e1') e2'
+liftDecl (EBind name e1 e2) = do
+  let mkBind e1' e2' = EBind name (eraseType e1') e2'
   e1' <- liftDecl e1
   cont \f -> mkBind e1' (runCont (liftDecl e2) f)
 liftDecl e = onA liftDecl e

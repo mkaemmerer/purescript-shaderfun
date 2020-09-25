@@ -43,7 +43,7 @@ on f (EInl val)         = EInl (f val)
 on f (EInr val)         = EInr (f val)
 on f (EMatch e lname l rname r)  = EMatch (f e) lname (f l) rname (f r)
 on f (ERec n name e1 e2)         = ERec n name (f e1) (f e2)
-on f (EBind name ty e1 e2)       = EBind name ty (f e1) (f e2)
+on f (EBind name e1 e2)          = EBind name (f e1) (f e2)
 
 onUnary :: forall a. (forall b. Expr b -> Expr b) -> UnaryExpr a -> UnaryExpr a
 onUnary f (UnNegate e)        = UnNegate        (f e)
@@ -135,7 +135,7 @@ onA f (EInl val)         = EInl <$> f val
 onA f (EInr val)         = EInr <$> f val
 onA f (EMatch e lname l rname r)  = EMatch <$> f e <*> pure lname <*> f l <*> pure rname <*> f r
 onA f (ERec n name e1 e2)         = ERec <$> pure n <*> pure name <*> f e1 <*> f e2
-onA f (EBind name ty e1 e2)       = (unsafeCoerce EBind) <$> pure name <*> pure ty <*> f e1 <*> f e2
+onA f (EBind name e1 e2)          = (unsafeCoerce EBind) <$> pure name <*> f e1 <*> f e2
 
 onUnaryA :: forall a f. Applicative f => (forall b. Expr b -> f (Expr b)) -> UnaryExpr a -> f (UnaryExpr a)
 onUnaryA f (UnNegate e)        = UnNegate        <$> f e
@@ -247,7 +247,7 @@ over t (EInl val)         = EInl (over t val)
 over t (EInr val)         = EInr (over t val)
 over t (EMatch e lname l rname r)  = EMatch (over t e) lname (over t l) rname (over t r)
 over t (ERec n name e1 e2)         = ERec n name (over t e1) (over t e2)
-over t (EBind name ty e1 e2)       = EBind name ty (over t e1) (over t e2)
+over t (EBind name e1 e2)          = EBind name (over t e1) (over t e2)
 
 dispatchUnary :: forall a. Traversal -> UnaryExpr a -> Expr a
 dispatchUnary t e@(UnNegate _)        = eraseType $ t.onNum      $ asNumber  (EUnary e)
@@ -345,7 +345,7 @@ foldExpr f (EInl val)         = f val
 foldExpr f (EInr val)         = f val
 foldExpr f (EMatch e lname l rname r)  = f e <> f l <> f r
 foldExpr f (ERec n name e1 e2)         = f e1 <> f e2
-foldExpr f (EBind name ty e1 e2)       = f e1 <> f e2
+foldExpr f (EBind name e1 e2)          = f e1 <> f e2
 
 foldExprUnary :: forall a b. Monoid b => (forall t. Expr t -> b) -> UnaryExpr a -> b
 foldExprUnary f (UnNegate e)        = f e

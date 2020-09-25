@@ -6,16 +6,17 @@ import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.Either (Either)
 import Data.Foldable (intercalate)
 import Data.HeytingAlgebra (ff, tt)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromJust)
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
 import Data.String.Utils (startsWith)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
 import Partial (crash)
-import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), Type(..), UnaryExpr(..), matchE)
+import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..), matchE)
 import Shader.Expr.Normalization (normalize)
 import Shader.Expr.Traversal (foldVars)
+import Shader.Expr.TypeInference (Type(..), inferType)
 import Unsafe.Coerce (unsafeCoerce)
 
 type Var      = String
@@ -189,14 +190,15 @@ fromExprPrec p (ECall e)      = fromCallExpr e
 fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
   where
     mkIf q = CEIf <$> fromExprPrec q i <*> fromExprPrec q t <*> fromExprPrec q e
-fromExprPrec p (EBind v ty e1 e2) = case e1 of
-  (ERec n _ init loop) -> fromRecExpr n v ty init loop e2
+fromExprPrec p (EBind v e1 e2) = case e1 of
+  (ERec n _ init loop) -> fromRecExpr n v init loop e2
   _ -> do
+    let ty = fromJust $ inferType e1
     e1' <- fromExprTop e1
     tell $ [CSDecl (fromType ty) v e1']
     e2' <- fromExprTop e2
     pure e2'
--- No concrete representation for these types. Handle by elaborating
+-- No concrete representation for these. Handle by normalizing
 fromExprPrec p (ERec _ _ _ _)     = crash
 fromExprPrec p (ETuple _ _)       = crash
 fromExprPrec p (EFst _)           = crash
@@ -288,28 +290,52 @@ fromCallExpr (FnReflectV2 e1 e2)     = CECall "reflect"    <$> sequence [fromExp
 fromCallExpr (FnReflectV3 e1 e2)     = CECall "reflect"    <$> sequence [fromExprTop e1, fromExprTop e2]
 
 -- TODO: I don't like how complicated this is
-fromRecExpr :: Partial => forall a b c. Int -> String -> Type -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
-fromRecExpr n v ty e1 loop e2 = do
+fromRecExpr :: Partial => forall a b c. Int -> String -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
+fromRecExpr n v e1 loop e2 = do
   _ <- fromExprTop $ normalize e1'
   tell $ [CSLoop n $ fromLoopBody v (removeFakes $ normalize loop')]
   fromExprTop $ removeFakes $ normalize e2'
   where
-    e1'   = EBind v ty (eraseType e1) (EVar "fake")
-    loop' = EBind v ty (EVar "fake")                -- Dummy declaration so that elaboration kicks in.
-      $ EBind v ty (fromIso $ eraseType loop)       -- Actual loop update
+    e1'   = EBind v (eraseType e1) (EVar "fake")
+    loop' = EBind v (EVar "fake")                   -- Dummy declaration so that elaboration kicks in.
+      $ EBind v (fromIso $ eraseType loop)          -- Actual loop update
       $ eitherToBool (resultExpr $ eraseType loop)  -- Loop break statement
-    e2'   = EBind v ty (EVar "fake")                -- Dummy declaration so that elaboration kicks in.
+    e2'   = EBind v (EVar "fake")                   -- Dummy declaration so that elaboration kicks in.
       $ e2                                          -- bound expression after the loop
     eraseType :: forall a b. Expr a -> Expr b
     eraseType = unsafeCoerce
     removeFakes :: forall a. Expr a -> Expr a
-    removeFakes e@(EBind _ _ ex1 ex2)
+    removeFakes e@(EBind _ ex1 ex2)
       | hasVar "fake" ex1 = removeFakes ex2
       | otherwise         = e
     removeFakes e = e
 
+-- TODO: Elaborate types
+-- elaborate (EBind name e1 e2) = case ty of
+--   TBoolean              -> EBind name ty (elaborate e1) (elaborate e2)
+--   TScalar               -> EBind name ty (elaborate e1) (elaborate e2)
+--   TVec2                 -> EBind name ty (elaborate e1) (elaborate e2)
+--   TVec3                 -> EBind name ty (elaborate e1) (elaborate e2)
+--   TComplex              -> EBind name ty (elaborate e1) (elaborate e2)
+--   TColor                -> EBind name ty (elaborate e1) (elaborate e2)
+--   TUnit                 -> elaborate e2'
+--     where
+--       e2' = subst name EUnit e2
+--   -- TODO: how to elaborate either types
+--   (TEither tl tr)       -> EBind name ty (elaborate e1) (elaborate e2)
+--   (TTuple t_fst t_snd)  -> elaborate $
+--     EBind name_fst t_fst (eraseType e1_fst) $
+--     EBind name_snd t_snd (eraseType e1_snd) $ e2'
+--     where
+--       e1_fst   = fst e1
+--       e1_snd   = snd e1
+--       name_fst = name <> "_fst"
+--       name_snd = name <> "_snd"
+--       tup      = tuple (EVar name_fst) (EVar name_snd)
+--       e2'      = subst name (eraseType tup) e2
+
 resultExpr :: forall a. Expr a -> Expr a
-resultExpr (EBind _ _ _ e2) = resultExpr e2
+resultExpr (EBind _ _ e2) = resultExpr e2
 resultExpr e = e
 
 hasVar :: forall a. String -> Expr a -> Boolean
