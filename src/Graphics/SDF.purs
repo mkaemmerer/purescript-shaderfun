@@ -95,7 +95,7 @@ difference = lift2 $ lift2 $ \x y -> max x (negate y)
 
 -- | Interpolate between two SDFs by a given factor
 blend :: forall d. Number -> SDF d -> SDF d -> SDF d
-blend fac = lift2 $ lift2 $ lerp (num fac)
+blend fac = lift2 $ lift2 $ \x y -> lerp x y (num fac)
 
 -------------------------------------------------------------------------------
 -- Morphology

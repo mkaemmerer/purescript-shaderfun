@@ -94,8 +94,9 @@ makeBinds e = do
         else onA makeBinds e
 
 needsBind :: forall a. Expr a -> Builder Boolean
-needsBind e@(ERec _ _ _ _) = pure true
-needsBind e                = (_ > 1) <$> getCount e
+needsBind (ERec _ _ _ _) = pure true
+needsBind (EUnary _)     = pure false
+needsBind e              = (_ > 1) <$> getCount e
 
 -- Introduce bindings by eliminating common sub-expressions
 addBindings :: forall a. Expr a -> Expr a

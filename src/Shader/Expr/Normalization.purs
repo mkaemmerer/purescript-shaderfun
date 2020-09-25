@@ -35,6 +35,8 @@ elaborate (EBinary (BinDivC c1 c2)) = eraseType $ complex nr ni
   nr = (r1*r2 + i1*i2) / d
   ni = (r2*i1 - r1*i2) / d
   d  = r2*r2 + i2*i2
+-- Re-associate subtraction
+elaborate (EBinary (BinMinus c1 (EBinary (BinMinus c2 c3)))) = eraseType $ c1 - c2 + c3
 elaborate e = on elaborate e
 
 -- TODO: not sure this fully simplifies all cases. I.e. Inl Inr?

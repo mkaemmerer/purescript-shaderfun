@@ -178,13 +178,11 @@ fromExprPrec p (EVec2 x y)    = makeVec2 <$> fromExprTop x <*> fromExprTop y
 fromExprPrec p (EVec3 x y z)  = makeVec3 <$> fromExprTop x <*> fromExprTop y <*> fromExprTop z
 fromExprPrec p (EComplex r i) = makeVec2 <$> fromExprTop r <*> fromExprTop i
 fromExprPrec p (EColor r g b) = makeVec3 <$> fromExprTop r <*> fromExprTop g <*> fromExprTop b
-fromExprPrec p (EUnary e)     = maybeParens p opPrec mkUnary
+fromExprPrec p (EUnary e)     = maybeParens p (unaryPrec e) mkUnary
   where
-    opPrec = unaryPrec e
     mkUnary q = fromUnaryExpr q e
-fromExprPrec p (EBinary e)    = maybeParens p opPrec mkBinary
+fromExprPrec p (EBinary e)    = maybeParens p (binaryPrec e) mkBinary
   where
-    opPrec = binaryPrec e
     mkBinary q = fromBinaryExpr q e
 fromExprPrec p (ECall e)      = fromCallExpr e
 fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
