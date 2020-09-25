@@ -89,9 +89,4 @@ liftDecl (EBind name ty e1 e2) = do
   let mkBind e1' e2' = EBind name ty (eraseType e1') e2'
   e1' <- liftDecl e1
   cont \f -> mkBind e1' (runCont (liftDecl e2) f)
-liftDecl (EBindRec n name ty e1 loop e2) = do
-  let mkRec e1' loop' e2' = EBindRec n name ty (eraseType e1') (eraseType loop') e2'
-  e1' <- liftDecl e1
-  let loop' = liftDecls $ eraseType loop
-  cont \f -> mkRec e1' loop' (runCont (liftDecl e2) f)
 liftDecl e = onA liftDecl e

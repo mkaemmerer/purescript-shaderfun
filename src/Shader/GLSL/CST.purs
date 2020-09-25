@@ -194,7 +194,7 @@ fromExprPrec p (EBind v ty e1 e2) = do
   tell $ [CSDecl (fromType ty) v e1']
   e2' <- fromExprTop e2
   pure e2'
-fromExprPrec p (EBindRec n v ty e1 loop e2) = fromRecExpr n v ty e1 loop e2
+fromExprPrec p (ERec n v ty e1 loop e2) = fromRecExpr n v ty e1 loop e2
 -- No concrete representation for these types. Handle by elaborating
 fromExprPrec p (ETuple _ _)       = crash
 fromExprPrec p (EFst _)           = crash
