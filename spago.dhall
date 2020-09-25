@@ -9,6 +9,7 @@ You can edit this file as you like.
   , "leibniz"
   , "psci-support"
   , "stringutils"
+  , "unordered-collections"
   , "web-dom"
   , "web-html"
   ]
