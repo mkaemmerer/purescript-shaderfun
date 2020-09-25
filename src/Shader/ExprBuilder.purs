@@ -11,16 +11,14 @@ module Shader.ExprBuilder
 
 import Prelude hiding (unit)
 
-import Control.Monad.State (State, get, modify, runState)
+import Control.Monad.State (State, evalState, get, modify)
 import Data.Either (Either)
-import Data.Tuple (Tuple(..))
 import Shader.Expr (class TypedExpr, Expr(..), matchE, recE)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | `Builder` is a monad for building expressions with unique variable names
 type Builder a = State BuilderState a
-type BuilderState = { count :: Int, cont :: forall a. Expr a -> Expr a }
--- TODO: Can this be decomposed with Cont/ContT/State/StateT
+type BuilderState = { count :: Int }
 
 type ExprBuilder a = Builder (Expr a)
 type ShaderFunc a b = Expr a -> ExprBuilder b
@@ -28,7 +26,7 @@ type ShaderFunc a b = Expr a -> ExprBuilder b
 infixr 4 type ShaderFunc as |>
 
 emptyState :: BuilderState
-emptyState = { count: 0, cont: identity }
+emptyState = { count: 0 }
 
 eraseType :: forall a b. (a -> a) -> (b -> b)
 eraseType = unsafeCoerce
@@ -54,23 +52,9 @@ match e l r = do
 rec :: forall t. (TypedExpr t) => Int -> (Expr t -> ExprBuilder (Either t t)) -> Expr t -> ExprBuilder t
 rec n f seed = do
   name <- newVar
-  loop <- buildSubroutine $ f $ EVar name
-  { cont } <- get
-  let build b = recE n name seed loop b
-  _ <- modify $ _ { cont = build >>> (eraseType cont) }
-  pure $ EVar name
-
-buildSubroutine :: forall t. ExprBuilder t -> ExprBuilder t
-buildSubroutine b = do
-  { count } <- get
-  let Tuple e { count: count', cont } = runState b { count, cont: identity }
-  let e' = cont e
-  _ <- modify $ _ { count = count' }
-  pure e'
+  loop <- f $ EVar name
+  pure $ recE n name seed loop
 
 -- | Run an expression builder and yield the result
 runExprBuilder :: forall t. ExprBuilder t -> Expr t
-runExprBuilder builder = cont e
-  where
-    Tuple e state = runState builder emptyState
-    { cont } = state
+runExprBuilder builder = evalState builder emptyState

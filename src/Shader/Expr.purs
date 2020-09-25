@@ -184,7 +184,7 @@ data Expr t
   | ECall (CallExpr t)
   | EIf (Expr Boolean) (Expr t) (Expr t)
   | EBind String Type (forall a. Expr a) (Expr t)
-  | ERec Int String Type (forall a. Expr a) (Expr (forall a. Either a a)) (Expr t)
+  | ERec Int String (Expr t) (Expr (Either t t))
 
 derive instance eqType :: Eq Type
 derive instance eqExpr :: Eq (Expr a)
@@ -317,8 +317,8 @@ matchE e name lBranch rBranch = EMatch (eraseType e) name_l expr_l name_r expr_r
     expr_l = lBranch (EVar name_l)
     expr_r = rBranch (EVar name_r)
 
-recE :: forall a b. (TypedExpr a) => Int -> String -> Expr a -> Expr (Either a a) -> Expr b -> Expr b
-recE n name e1 rec e2 = ERec n name (typeof e1) (eraseType e1) (eraseType $ rec) e2
+recE :: forall a. Int -> String -> Expr a -> Expr (Either a a) -> Expr a
+recE n name e1 e2 = ERec n name e1 e2
 
 fromUnit :: Unit -> Expr Unit
 fromUnit _ = EUnit

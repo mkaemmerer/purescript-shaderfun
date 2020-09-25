@@ -189,13 +189,15 @@ fromExprPrec p (ECall e)      = fromCallExpr e
 fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
   where
     mkIf q = CEIf <$> fromExprPrec q i <*> fromExprPrec q t <*> fromExprPrec q e
-fromExprPrec p (EBind v ty e1 e2) = do
-  e1' <- fromExprTop e1
-  tell $ [CSDecl (fromType ty) v e1']
-  e2' <- fromExprTop e2
-  pure e2'
-fromExprPrec p (ERec n v ty e1 loop e2) = fromRecExpr n v ty e1 loop e2
+fromExprPrec p (EBind v ty e1 e2) = case e1 of
+  (ERec n _ init loop) -> fromRecExpr n v ty init loop e2
+  _ -> do
+    e1' <- fromExprTop e1
+    tell $ [CSDecl (fromType ty) v e1']
+    e2' <- fromExprTop e2
+    pure e2'
 -- No concrete representation for these types. Handle by elaborating
+fromExprPrec p (ERec _ _ _ _)     = crash
 fromExprPrec p (ETuple _ _)       = crash
 fromExprPrec p (EFst _)           = crash
 fromExprPrec p (ESnd _)           = crash

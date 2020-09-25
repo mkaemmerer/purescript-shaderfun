@@ -80,6 +80,8 @@ simplify e = on simplify e
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
 
+
+-- TODO: reintroduce bindings by performing common-subexpression-elimination
 -- Hoist declarations to top level
 liftDecls :: forall a. Expr a -> Expr a
 liftDecls e = runCont (liftDecl e) identity
