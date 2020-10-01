@@ -1,13 +1,12 @@
-module Shader.GLSL.TypeInference (inferType, inferTypes, Type(..), TypeContext, emptyContext) where
+module Shader.GLSL.TypeInference (inferType, lookupType, withTypes, Type(..), TypeContext, emptyContext) where
 
 
 import Prelude
 
-import Control.Monad.Except (ExceptT, runExceptT, throwError)
-import Control.Monad.State (State, gets, lift, modify_, runState)
-import Data.Map (Map, insert, lookup, singleton)
-import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
+import Control.Monad.Reader (class MonadReader, asks, local)
+import Data.Map (Map, lookup, singleton)
+import Data.Maybe (Maybe(..), fromJust)
+import Partial (crash)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..))
 
 data Type
@@ -33,35 +32,27 @@ extractSnd _ = Nothing
 
 
 type TypeContext = Map String Type
-type TypeChecker = ExceptT Unit (State TypeContext)
 
 emptyContext :: TypeContext
 emptyContext = singleton "p" TVec2
 
-exceptFromMaybe :: forall a. Maybe a -> TypeChecker a
+exceptFromMaybe :: Partial => forall a m. MonadReader TypeContext m => Maybe a -> m a
 exceptFromMaybe (Just a) = pure a
-exceptFromMaybe Nothing  = throwError unit
+exceptFromMaybe Nothing  = crash
 
-lookupType :: String -> TypeChecker Type
-lookupType n = do
-  ty <- lift $ gets (lookup n)
-  exceptFromMaybe ty
+lookupType :: Partial => forall m. MonadReader TypeContext m => String -> m Type
+lookupType v = asks (lookup v >>> fromJust)
 
-resultType :: Type -> TypeChecker Type
+resultType :: forall m. Monad m => Type -> m Type
 resultType t = pure t
 
-ascribeType :: String -> Type -> TypeChecker Unit
-ascribeType n t = modify_ (insert n t)
+ascribeType :: String -> Type -> TypeContext
+ascribeType n t = singleton n t
 
+withTypes :: forall a m. MonadReader TypeContext m => TypeContext -> m a -> m a
+withTypes ctx = local (\ctx1 -> ctx1 <> ctx)
 
-inferTypes :: forall a. Expr a -> TypeContext -> TypeContext
-inferTypes e ctx = s
-  where
-    Tuple r s = runState (runExceptT (inferType e)) ctx
-    -- TODO: check if type inference failed and do something?
-
-
-inferType :: forall a. Expr a -> TypeChecker Type
+inferType :: Partial => forall a m. MonadReader TypeContext m => Expr a -> m Type
 inferType (EVar n)           = lookupType n
 inferType (EBool b)          = pure TBoolean
 inferType (ENum n)           = pure TScalar
@@ -78,27 +69,20 @@ inferType (EFst tup)         = inferType tup >>= (extractFst >>> exceptFromMaybe
 inferType (ESnd tup)         = inferType tup >>= (extractSnd >>> exceptFromMaybe)
 inferType (EInl val)         = (\t -> TEither t TUnit) <$> inferType val
 inferType (EInr val)         = (\t -> TEither TUnit t) <$> inferType val
-inferType (EMatch e lname l rname r)  =
-  do
-    _ <- inferType e
-    _ <- inferType l
-    inferType r
-inferType (EIf i thn els) =
-  do
-    _ <- inferType i
-    _ <- inferType thn
-    inferType els
+inferType (EMatch e lname l rname r) = do
+  -- TODO: use local binding for rname when checking r
+  inferType r
+inferType (EIf i thn els)     = inferType els
 inferType (ERec n name e1 e2) =
   do
     ty <- inferType e1
-    ascribeType name ty
-    _ <- inferType e2
-    pure ty
+    withTypes (ascribeType name ty) do
+      _ <- inferType e2
+      pure ty
 inferType (EBind name e1 e2) =
   do
     ty <- inferType e1
-    ascribeType name ty
-    inferType e2
+    withTypes (ascribeType name ty) (inferType e2)
 
 inferUnary :: forall a. UnaryExpr a -> Type
 inferUnary (UnNegate e)        = TBoolean
