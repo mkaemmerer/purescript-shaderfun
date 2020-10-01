@@ -3,7 +3,7 @@ module Shader.GLSL.CST (CExpr, CStmt, printCST, fromExpr) where
 import Prelude
 
 import Control.Monad.Reader (ReaderT, runReaderT)
-import Control.Monad.Writer (Writer, runWriter, tell)
+import Control.Monad.Writer (Writer, censor, runWriter, tell)
 import Data.Either (Either)
 import Data.Foldable (intercalate)
 import Data.HeytingAlgebra (ff, tt)
@@ -156,6 +156,17 @@ makeVec3 x y z
   | x == y && y == z   = CEVec3Shorthand x
   | otherwise          = CEVec3 x y z
 
+convertDecl :: String -> CStmt -> CStmt
+convertDecl v (CSDecl ty n e)
+  | v == n                     = CSAssign n e
+  | startsWith (v <> "_") n    = CSAssign n e
+  | otherwise                  = CSDecl ty n e
+convertDecl v (CSAssign n e)   = CSAssign n e
+convertDecl v (CSReturn e)     = CSReturn e
+convertDecl v (CSIf i thn els) = CSIf i (convertDecl v <$> thn) ((liftA1 $ convertDecl v) <$> els)
+convertDecl v (CSLoop n block) = CSLoop n (convertDecl v <$> block)
+convertDecl v (CSBreak)        = CSBreak
+
 
 type CSTWriter a = ReaderT TypeContext (Writer CBlock) a
 
@@ -173,19 +184,24 @@ writeDecl n ty e             = do
   tell $ [CSDecl (fromType ty) n e']
   pure $ singleton n ty
 
-substDecl :: Partial => forall a b. String -> Type -> Expr a -> Expr b -> Expr b
-substDecl n (TTuple t1 t2) e1 e2 = subst n tup e2
+writeLoop :: Partial => forall a. String -> Int -> Expr a -> CSTWriter Unit
+writeLoop v n e = censor toLoop $ do
+  expr <- fromExprTop e
+  tell $ [CSIf expr [CSBreak] Nothing]
   where
-    e1_fst = fst (eraseType e1)
-    e1_snd = snd (eraseType e1)
+    toLoop block = [CSLoop n (convertDecl v <$> block)]
+
+substDecl :: Partial => forall a. String -> Type -> Expr a -> Expr a
+substDecl n (TTuple t1 t2) e2 = subst n tup e2
+  where
     n_fst  = n <> "_fst"
     n_snd  = n <> "_snd"
     v_fst  = EVar n_fst
     v_snd  = EVar n_snd
     -- TODO: expand recursively?
     tup    = tuple v_fst v_snd
-substDecl n (TEither t1 t2) e1 e2 = crash
-substDecl n ty e1 e2              = e2
+substDecl n (TEither t1 t2) e2 = crash
+substDecl n ty e2              = e2
 
 
 -- Partial functions reference the fact that not all expressions in the grammar are well typed.
@@ -217,8 +233,8 @@ fromExprPrec p (EIf i t e)    = maybeParens p ifPrec mkIf
   where
     mkIf q = CEIf <$> fromExprPrec q i <*> fromExprPrec q t <*> fromExprPrec q e
 fromExprPrec p (EBind v e1 e2) = case e1 of
-  (ERec n _ init loop) -> fromRecExpr n v init loop e2
-  _                    -> fromBindExpr v e1 e2
+  (ERec n v' init loop) -> fromRecExpr v n v' init loop e2
+  _                     -> fromBindExpr v e1 e2
 -- No concrete representation for these. Handle by normalizing
 fromExprPrec p (ERec _ _ _ _)     = crash
 fromExprPrec p (ETuple _ _)       = crash
@@ -314,25 +330,29 @@ fromBindExpr :: Partial => forall a b. String -> Expr a -> Expr b -> CSTWriter C
 fromBindExpr n e1 e2 = do
   ty <- inferType e1
   ctx <- writeDecl n ty e1
-  let e2' = normalize $ substDecl n ty e1 e2
+  let e2' = normalize $ substDecl n ty e2
   withTypes ctx $ fromExprTop e2'
 
-fromRecExpr :: Partial => forall a b c. Int -> String -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
-fromRecExpr n v e1 loop e2 = do
+fromRecExpr :: Partial => forall a b c. String -> Int -> String -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
+fromRecExpr v n v' e1 loop e2 = do
   ty <- inferType e1
   ctx <- writeDecl v ty e1
-  tell $ [CSLoop n $ fromLoopBody v ty ctx loop]
-  let e2' = normalize $ substDecl v ty e1 e2
-  withTypes ctx $ fromExprTop e2'
-
-fromLoopBody :: forall a. Partial => String -> Type -> TypeContext -> Expr a -> CBlock
-fromLoopBody v ty ctx e = (convertDecl v <$> block) <> [CSIf expr [CSBreak] Nothing]
+  withTypes (ctx <> loopTypes ty) $ do
+    -- TODO: This substDecl thing seems extremely tenuous. Probably need to rethink
+    let loop' = normalize $ substDecl v ty loopBody
+    writeLoop v n loop'
+    let e2' = normalize $ substDecl v ty e2
+    fromExprTop e2'
   where
-    loop = normalize $ EBind v
-      (fromIso $ eraseType e)                         -- Loop update
-      (eitherToBool $ resultExpr $ eraseType e)       -- Loop break statement
-    ctx' = ctx <> singleton "iso_l" ty <> singleton "iso_r" ty
-    (Tuple expr block) = runCSTWriter loop ctx'
+    loopTypes ty = singleton "iso_l" ty <> singleton "iso_r" ty
+    loopInner = subst v' (EVar v) loop
+    loopBody = EBind v
+      (onResult fromIso $ eraseType loopInner)                -- Loop update
+      (eitherToBool $ resultExpr $ eraseType loopInner)       -- Loop break statement
+
+onResult :: forall a b. (Expr a -> Expr b) -> Expr a -> Expr b
+onResult f (EBind n e1 e2) = EBind n e1 (onResult f e2)
+onResult f e               = f e
 
 resultExpr :: forall a. Expr a -> Expr a
 resultExpr (EBind _ _ e2) = resultExpr e2
@@ -343,17 +363,6 @@ eitherToBool e = matchE e "bool" (const ff) (const tt)
 
 fromIso :: forall a. Expr (Either a a) -> Expr a
 fromIso e = matchE e "iso" identity identity
-
-convertDecl :: String -> CStmt -> CStmt
-convertDecl v (CSDecl ty n e)
-  | v == n                     = CSAssign n e
-  | startsWith (v <> "_") n    = CSAssign n e
-  | otherwise                  = CSDecl ty n e
-convertDecl v (CSAssign n e)   = CSAssign n e
-convertDecl v (CSReturn e)     = CSReturn e
-convertDecl v (CSIf i thn els) = CSIf i (convertDecl v <$> thn) ((liftA1 $ convertDecl v) <$> els)
-convertDecl v (CSLoop n block) = CSLoop n (convertDecl v <$> block)
-convertDecl v (CSBreak)        = CSBreak
 
 eraseType :: forall a b. Expr a -> Expr b
 eraseType = unsafeCoerce
