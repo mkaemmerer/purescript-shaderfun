@@ -113,6 +113,11 @@ liftBinding (EBind name e1 e2) = do
   let mkBind e1' e2' = EBind name (eraseType e1') e2'
   e1' <- liftBinding e1
   cont \f -> mkBind e1' (runCont (liftBinding e2) f)
+liftBinding (ERec n name seed loop) = do
+  let mkRec seed' loop' = ERec n name (eraseType seed') (eraseType loop')
+  seed' <- liftBinding seed
+  let loop' = liftBindings $ eraseType loop
+  pure $ mkRec seed' loop'
 liftBinding e = onA liftBinding e
 
 eraseType :: forall a b. Expr a -> Expr b

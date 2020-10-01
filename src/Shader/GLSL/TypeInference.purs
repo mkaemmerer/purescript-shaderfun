@@ -1,9 +1,13 @@
-module Shader.Expr.TypeInference (inferType, Type(..)) where
+module Shader.GLSL.TypeInference (inferType, inferTypes, Type(..), TypeContext, emptyContext) where
 
 
 import Prelude
 
+import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.State (State, gets, lift, modify_, runState)
+import Data.Map (Map, insert, lookup, singleton)
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..))
 
 data Type
@@ -19,27 +23,82 @@ data Type
 
 derive instance eqType :: Eq Type
 
-inferType :: forall a. Expr a -> Maybe Type
-inferType (EVar n)           = Nothing
-inferType (EBool b)          = Just TBoolean
-inferType (ENum n)           = Just TScalar
-inferType (EVec2 x y)        = Just TVec2
-inferType (EVec3 x y z)      = Just TVec3
-inferType (EComplex r i)     = Just TComplex
-inferType (EColor r g b)     = Just TColor
-inferType (EUnary e)         = Just $ inferUnary e
-inferType (EBinary e)        = Just $ inferBinary e
-inferType (ECall e)          = Just $ inferCall e
-inferType (EUnit)            = Just TUnit
+extractFst :: Type -> Maybe Type
+extractFst (TTuple a b) = Just a
+extractFst _ = Nothing
+
+extractSnd :: Type -> Maybe Type
+extractSnd (TTuple a b) = Just b
+extractSnd _ = Nothing
+
+
+type TypeContext = Map String Type
+type TypeChecker = ExceptT Unit (State TypeContext)
+
+emptyContext :: TypeContext
+emptyContext = singleton "p" TVec2
+
+exceptFromMaybe :: forall a. Maybe a -> TypeChecker a
+exceptFromMaybe (Just a) = pure a
+exceptFromMaybe Nothing  = throwError unit
+
+lookupType :: String -> TypeChecker Type
+lookupType n = do
+  ty <- lift $ gets (lookup n)
+  exceptFromMaybe ty
+
+resultType :: Type -> TypeChecker Type
+resultType t = pure t
+
+ascribeType :: String -> Type -> TypeChecker Unit
+ascribeType n t = modify_ (insert n t)
+
+
+inferTypes :: forall a. Expr a -> TypeContext -> TypeContext
+inferTypes e ctx = s
+  where
+    Tuple r s = runState (runExceptT (inferType e)) ctx
+    -- TODO: check if type inference failed and do something?
+
+
+inferType :: forall a. Expr a -> TypeChecker Type
+inferType (EVar n)           = lookupType n
+inferType (EBool b)          = pure TBoolean
+inferType (ENum n)           = pure TScalar
+inferType (EVec2 x y)        = pure TVec2
+inferType (EVec3 x y z)      = pure TVec3
+inferType (EComplex r i)     = pure TComplex
+inferType (EColor r g b)     = pure TColor
+inferType (EUnary e)         = pure $ inferUnary e
+inferType (EBinary e)        = pure $ inferBinary e
+inferType (ECall e)          = pure $ inferCall e
+inferType (EUnit)            = pure TUnit
 inferType (ETuple a b)       = TTuple <$> inferType a <*> inferType b
-inferType (EFst tup)         = Nothing
-inferType (ESnd tup)         = Nothing
-inferType (EIf i thn els)    = inferType thn
-inferType (EInl val)         = Nothing
-inferType (EInr val)         = Nothing
-inferType (EMatch e lname l rname r)  = inferType l
-inferType (ERec n name e1 e2)         = inferType e1
-inferType (EBind name e1 e2)          = inferType e2
+inferType (EFst tup)         = inferType tup >>= (extractFst >>> exceptFromMaybe)
+inferType (ESnd tup)         = inferType tup >>= (extractSnd >>> exceptFromMaybe)
+inferType (EInl val)         = (\t -> TEither t TUnit) <$> inferType val
+inferType (EInr val)         = (\t -> TEither TUnit t) <$> inferType val
+inferType (EMatch e lname l rname r)  =
+  do
+    _ <- inferType e
+    _ <- inferType l
+    inferType r
+inferType (EIf i thn els) =
+  do
+    _ <- inferType i
+    _ <- inferType thn
+    inferType els
+inferType (ERec n name e1 e2) =
+  do
+    ty <- inferType e1
+    ascribeType name ty
+    _ <- inferType e2
+    pure ty
+inferType (EBind name e1 e2) =
+  do
+    ty <- inferType e1
+    ascribeType name ty
+    inferType e2
 
 inferUnary :: forall a. UnaryExpr a -> Type
 inferUnary (UnNegate e)        = TBoolean

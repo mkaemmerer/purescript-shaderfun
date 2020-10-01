@@ -1,17 +1,15 @@
-module Shader.Expr.Normalization (normalize, subst) where
+module Shader.Expr.Normalization (normalize, simplify, subst) where
 
 import Prelude
 
 import Data.Tuple (Tuple(..))
-import Partial.Unsafe (unsafePartial)
 import Shader.Expr (BinaryExpr(..), Expr(..), complex, projImaginary, projReal)
-import Shader.Expr.Binding (makeBindings)
 import Shader.Expr.Traversal (on)
 import Unsafe.Coerce (unsafeCoerce)
 
 
 normalize :: forall a. Expr a -> Expr a
-normalize = unsafePartial $ elaborate >>> simplify >>> makeBindings
+normalize = elaborate >>> simplify
 
 subst :: forall a b. String -> Expr a -> Expr b -> Expr b
 subst v e1 (EVar n)
