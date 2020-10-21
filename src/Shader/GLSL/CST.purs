@@ -175,12 +175,15 @@ runCSTWriter e ctx = runWriter $ runReaderT (fromExprTop e) ctx
 
 writeDecl :: Partial => forall a. String -> Type -> Expr a -> CSTWriter TypeContext
 writeDecl n (TTuple t1 t2) e  = do
-  ctx1 <- writeDecl (n <> "_fst") t1 $ fst (eraseType e)
-  ctx2 <- writeDecl (n <> "_snd") t2 $ snd (eraseType e)
+  ctx1 <- writeDecl (n <> "_fst") t1 $ fst' e
+  ctx2 <- writeDecl (n <> "_snd") t2 $ snd' e
   pure $ ctx1 <> ctx2
+  where
+    fst' ex = onResult (fst >>> normalize) (eraseType ex)
+    snd' ex = onResult (snd >>> normalize) (eraseType ex)
 writeDecl n (TEither t1 t2) e = crash
-writeDecl n ty e             = do
-  e' <- fromExprTop $ normalize e
+writeDecl n ty e = do
+  e' <- fromExprTop e
   tell $ [CSDecl (fromType ty) n e']
   pure $ singleton n ty
 
@@ -338,7 +341,6 @@ fromRecExpr v n v' e1 loop e2 = do
   ty <- inferType e1
   ctx <- writeDecl v ty e1
   withTypes (ctx <> loopTypes ty) $ do
-    -- TODO: This substDecl thing seems extremely tenuous. Probably need to rethink
     let loop' = normalize $ substDecl v ty loopBody
     writeLoop v n loop'
     let e2' = normalize $ substDecl v ty e2
@@ -346,6 +348,7 @@ fromRecExpr v n v' e1 loop e2 = do
   where
     loopTypes ty = singleton "iso_l" ty <> singleton "iso_r" ty
     loopInner = subst v' (EVar v) loop
+    -- TODO: loop body is creating duplicate declarations in output
     loopBody = EBind v
       (onResult fromIso $ eraseType loopInner)                -- Loop update
       (eitherToBool $ resultExpr $ eraseType loopInner)       -- Loop break statement
