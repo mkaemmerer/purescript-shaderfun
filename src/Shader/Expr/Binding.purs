@@ -1,4 +1,4 @@
-module Shader.Expr.Binding (makeBindings) where
+module Shader.Expr.Binding (makeBindings, liftBindings) where
 
 import Prelude
 

@@ -14,6 +14,7 @@ import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
 import Partial (crash)
 import Shader.Expr (BinaryExpr(..), CallExpr(..), Expr(..), UnaryExpr(..), fst, matchE, snd, tuple)
+import Shader.Expr.Binding (liftBindings)
 import Shader.Expr.Normalization (normalize, subst)
 import Shader.GLSL.TypeInference (Type(..), TypeContext, emptyContext, inferType, withTypes)
 import Unsafe.Coerce (unsafeCoerce)
@@ -341,7 +342,7 @@ fromRecExpr v n v' e1 loop e2 = do
   ty <- inferType e1
   ctx <- writeDecl v ty e1
   withTypes (ctx <> loopTypes ty) $ do
-    let loop' = normalize $ substDecl v ty loopBody
+    let loop' = normalize $ substDecl v ty (liftBindings loopBody)
     writeLoop v n loop'
     let e2' = normalize $ substDecl v ty e2
     fromExprTop e2'
