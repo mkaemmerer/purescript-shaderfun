@@ -176,8 +176,8 @@ runCSTWriter e ctx = runWriter $ runReaderT (fromExprTop e) ctx
 
 writeDecl :: Partial => forall a. String -> Type -> Expr a -> CSTWriter TypeContext
 writeDecl n (TTuple t1 t2) e  = do
-  ctx1 <- writeDecl (n <> "_fst") t1 $ fst' e
-  ctx2 <- writeDecl (n <> "_snd") t2 $ snd' e
+  ctx1 <- writeDecl (n <> "_fst") t1 (fst' e)
+  ctx2 <- writeDecl (n <> "_snd") t2 (snd' e)
   pure $ ctx1 <> ctx2
   where
     fst' ex = onResult (fst >>> normalize) (eraseType ex)
@@ -337,19 +337,19 @@ fromBindExpr n e1 e2 = do
   let e2' = normalize $ substDecl n ty e2
   withTypes ctx $ fromExprTop e2'
 
+-- TODO: I still don't like how complex this is
 fromRecExpr :: Partial => forall a b c. String -> Int -> String -> Expr a -> Expr b -> Expr c -> CSTWriter CExpr
 fromRecExpr v n v' e1 loop e2 = do
   ty <- inferType e1
   ctx <- writeDecl v ty e1
   withTypes (ctx <> loopTypes ty) $ do
-    let loop' = normalize $ substDecl v ty (liftBindings loopBody)
+    let loop' = normalize $ substDecl v ty $ liftBindings loopBody
     writeLoop v n loop'
     let e2' = normalize $ substDecl v ty e2
     fromExprTop e2'
   where
     loopTypes ty = singleton "iso_l" ty <> singleton "iso_r" ty
     loopInner = subst v' (EVar v) loop
-    -- TODO: loop body is creating duplicate declarations in output
     loopBody = EBind v
       (onResult fromIso $ eraseType loopInner)                -- Loop update
       (eitherToBool $ resultExpr $ eraseType loopInner)       -- Loop break statement

@@ -5,7 +5,7 @@ import Prelude
 import Data.Foldable (sequence_)
 import Data.Maybe (Maybe)
 import Effect (Effect)
-import Example.Loop (source)
+import Example.JuliaSet (source)
 import Render (getContext, compileShader, drawShader)
 import Web.DOM.ParentNode (QuerySelector(..), querySelector)
 import Web.HTML (HTMLCanvasElement, window)

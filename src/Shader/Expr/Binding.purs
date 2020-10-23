@@ -71,31 +71,38 @@ getCount e = do
   counts <- gets _.counts
   pure $ lookupCounts e counts
 
-makeSub :: forall a. Expr a -> Builder (Expr a)
-makeSub e = do
-  e' <- onA makeBinds e
+makeSub :: forall a. Expr a -> Expr a -> Builder (Expr a)
+makeSub e1 e2 = do
   n <- newVar
   subs <- gets _.subs
-  _ <- modify $ _ { subs = insertSub e (EVar n) subs }
-  pure $ bindE n e' (EVar n)
+  _ <- modify $ _ { subs = insertSub e1 (EVar n) subs }
+  pure $ bindE n e2 (EVar n)
 
 makeBinds :: forall a. Expr a -> Builder (Expr a)
-makeBinds e@(EVar _)  = pure e
-makeBinds e@(ENum _)  = pure e
-makeBinds e@(EBool _) = pure e
 makeBinds e = do
   s <- getSub e
   case s of
     (Just e') -> pure e'
     Nothing   -> do
       b  <- needsBind e
+      e' <- makeBindsInner e
       if b
-        then makeSub e
-        else onA makeBinds e
+        then makeSub e e'
+        else pure e'
+
+-- Loop body doesn't need to be assigned to a variable
+makeBindsInner :: forall a. Expr a -> Builder (Expr a)
+makeBindsInner e@(ERec n name seed loop) = ERec <$> pure n <*> pure name <*> makeBinds seed <*> onA makeBinds loop
+makeBindsInner e                         = onA makeBinds e
 
 needsBind :: forall a. Expr a -> Builder Boolean
 needsBind (ERec _ _ _ _) = pure true
 needsBind (EUnary _)     = pure false
+needsBind (EInl _)       = pure false
+needsBind (EInr _)       = pure false
+needsBind (EVar _)       = pure false
+needsBind (ENum _)       = pure false
+needsBind (EBool _)      = pure false
 needsBind e              = (_ > 1) <$> getCount e
 
 -- Introduce bindings by eliminating common sub-expressions
